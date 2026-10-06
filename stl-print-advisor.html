@@ -5,8 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0e14">
   <meta name="application-name" content="СлойМастер 3D">
-  <meta name="application-version" content="1.0.1">
+  <meta name="application-version" content="1.1.0">
   <meta name="update-feed-url" content="https://raw.githubusercontent.com/kirillpanovk-collab/sloymaster-3d/main/releases.json">
+  <meta name="update-feed-url" content="https://raw.githubusercontent.com/kirillpanovk-collab/sloymaster-3d/main/releases.json">
+  <meta name="feedback-endpoint" content="">
   <link rel="icon" type="image/svg+xml" href="sloymaster-icon.svg">
   <title>СлойМастер 3D — анализ печати</title>
   <style>
@@ -96,6 +98,13 @@
     .profile-control { display:flex; gap:7px; align-items:center; }
     .profile-control select { flex:1; min-width:0; padding:8px; font-size:11px; }
     .profile-control button { flex:0 0 auto; padding:8px 9px; font-size:10px; }
+    .slicer-actions { display:flex; gap:8px; align-items:center; margin-top:9px; }
+    .slicer-actions select { min-width:0; flex:1; padding:8px; font-size:11px; }
+    .slicer-actions button { flex:0 0 auto; padding:9px 11px; font-size:11px; }
+    .slicer-settings { margin-top:14px; padding-top:13px; border-top:1px solid var(--line); }
+    .slicer-settings summary { color:var(--mint); font-size:12px; font-weight:750; cursor:pointer; }
+    .slicer-settings .fields { margin-top:12px; }
+    .slicer-status { min-height:18px; margin:7px 1px 0; color:var(--muted); font-size:10px; line-height:1.45; white-space:pre-line; }
     .windows-foot { color:#819089; font-size:10px; line-height:1.45; margin:10px 1px 0; }
     @media(max-width:800px) { .layout{grid-template-columns:1fr} header{display:block} .tag{display:inline-block;margin-top:15px} }
     @media(max-width:520px) { .shell{padding:28px 14px 44px}.card{padding:17px}.metrics{grid-template-columns:repeat(2,1fr)}.settings{grid-template-columns:1fr}.fields{gap:10px}.windows-grid{grid-template-columns:1fr}.profile-control{align-items:stretch;flex-direction:column} }
@@ -149,6 +158,12 @@
     .learning-actions .unit { max-width:360px; line-height:1.45; }
     .learning-actions button.secondary { color:#b4c0d0; border-color:#ffffff1c; background:#ffffff06; }
     .learning-status { min-height:18px; color:var(--muted); font-size:11px; margin-top:8px; }
+    .note-assist { border:1px solid #54dca533; background:#54dca508; border-radius:12px; padding:12px; line-height:1.5; }
+    .note-assist[hidden] { display:none; }
+    .note-assist p { margin:0 0 8px; }
+    .note-assist p { white-space:pre-wrap; overflow-wrap:anywhere; }
+    .note-assist .learning-actions { margin-top:8px; }
+    .note-assist-status { color:var(--muted); font-size:11px; }
     .dialog-form { display:grid; gap:12px; }
     .dialog-form .field label { color:#c4ceca; }
     .dialog-form input[type=url] { background:#0d121a; border-color:#2b3545; }
@@ -232,7 +247,9 @@
               <div class="detected-list" id="profileDetails" style="margin-top:8px"></div>
             </div>
           </div>
-          <p class="windows-foot">«Активен» означает отметку помощника в конфигурации; сохранённые кандидаты не подтверждают подключение принтера. Очереди и COM-порты также не подтверждают модель. Данные применяются только к полям этого помощника; прямое управление слайсером не выполняется.</p>
+          <div class="field full slicer-actions"><select id="slicerTarget" disabled aria-label="Слайсер для подготовки проекта"><option value="">Совместимый слайсер не найден</option></select><button id="prepareSlicerProject" type="button" disabled>Подготовить проект</button></div>
+          <p class="slicer-status" id="slicerStatus" aria-live="polite">Для передачи модели запустите приложение через ярлык Windows.</p>
+          <p class="windows-foot">Поиск читает очередь Windows, USB/COM-кандидаты и профили слайсеров. Они не доказывают, что принтер подключён или включён. Автоматическая передача проекта поддерживается для обнаруженных профилей OrcaSlicer, Bambu Studio и PrusaSlicer; для остальных слайсеров можно сохранить рекомендации отдельно.</p>
         </section>
         <section class="card">
           <h2>Параметры печати</h2>
@@ -252,7 +269,7 @@
             </div>
             <div class="field full">
               <label for="goal">Приоритет печати</label>
-              <select id="goal"><option value="balanced">Баланс качества и скорости</option><option value="detail">Мелкие детали и качество</option><option value="strength">Прочность детали</option><option value="fast">Скорость</option></select>
+              <select id="goal"><option value="balanced">Баланс качества и скорости</option><option value="detail">Мелкие детали и качество поверхности</option><option value="strength">Прочность детали</option><option value="supports">Меньше поддержек</option><option value="fast">Скорость</option></select>
             </div>
             <div class="field full">
               <label>Область печати принтера</label>
@@ -310,6 +327,22 @@
           <section class="card">
             <div class="section-title"><h2>Стартовые настройки</h2><span class="tag" id="profileTag">PLA · 0,4 мм</span></div>
             <div class="settings" id="settings"></div>
+            <details class="slicer-settings">
+              <summary>Расширенные параметры проекта для слайсера</summary>
+              <div class="fields">
+                <div class="field"><label for="slicerLayerHeight">Высота слоя, мм</label><input id="slicerLayerHeight" type="number" min="0.04" max="1.2" step="0.01"></div>
+                <div class="field"><label for="slicerFirstLayerHeight">Первый слой, мм</label><input id="slicerFirstLayerHeight" type="number" min="0.04" max="1.5" step="0.01"></div>
+                <div class="field"><label for="slicerWalls">Стенки / периметры</label><input id="slicerWalls" type="number" min="2" max="12" step="1"></div>
+                <div class="field"><label for="slicerInfill">Заполнение, %</label><input id="slicerInfill" type="number" min="0" max="100" step="1"></div>
+                <div class="field"><label for="slicerPattern">Шаблон заполнения</label><select id="slicerPattern"><option value="gyroid">Gyroid</option><option value="grid">Сетка</option><option value="cubic">Кубический</option><option value="adaptivecubic">Адаптивный кубический</option></select></div>
+                <div class="field"><label for="slicerSupport">Поддержки</label><select id="slicerSupport"><option value="none">Не добавлять автоматически</option><option value="tree">Древовидные · автоматически</option><option value="normal">Обычные · автоматически</option></select></div>
+                <div class="field"><label for="slicerNozzleTemp">Сопло, °C</label><input id="slicerNozzleTemp" type="number" min="100" max="500" step="1" placeholder="Профиль катушки"></div>
+                <div class="field"><label for="slicerBedTemp">Стол, °C</label><input id="slicerBedTemp" type="number" min="20" max="200" step="1" placeholder="Профиль катушки"></div>
+                <div class="field"><label for="slicerSpeed">Скорость заполнения, мм/с</label><input id="slicerSpeed" type="number" min="1" max="1000" step="1" placeholder="Профиль слайсера"></div>
+                <div class="field"><label for="slicerBrim">Кайма (brim), мм</label><input id="slicerBrim" type="number" min="0" max="30" step="0.5"></div>
+              </div>
+              <p class="slicer-status">Подсказанные числа являются отправной точкой по семейству материала. Перед печатью сверьте температуры с маркировкой катушки и проверьте предпросмотр поддержек. Ваши правки передаются в проект. Скорость принтер ограничивает своим профилем и потоком.</p>
+            </details>
             <p class="disclaimer">Это стартовый диапазон семейства материала, не точный рецепт катушки. Сверяйтесь с TDS бренда и профилем принтера; скорости дополнительно ограничиваются пропускной способностью хотэнда, если она указана. <a href="https://help.prusa3d.com/filament-material-guide" target="_blank" rel="noreferrer">Справочник материалов Prusa</a></p>
           </section>
           <section class="card">
@@ -321,12 +354,14 @@
             <p class="learning-intro">После печати отметьте результат и фактические параметры. История остаётся в этом браузере и помогает сравнивать связку принтера, материала, сопла и наполнителя. Модель, настройки и история не отправляются в интернет. Приложение не наблюдает за принтером само — результат вносится вручную.</p>
             <div class="learning-summary" id="learningSummary" aria-live="polite">Для этой связки пока нет записей.</div>
             <div class="fields">
-              <div class="field"><label for="printOutcome">Итог печати</label><select id="printOutcome"><option value="success">Успешно</option><option value="failure">Неудачно</option></select></div>
+              <div class="field"><label for="printOutcome">Итог печати</label><select id="printOutcome"><option value="" selected>Выберите результат</option><option value="success">Успешно</option><option value="failure">Неудачно</option></select></div>
               <div class="field"><label for="printIssue">Если была проблема</label><select id="printIssue"><option value="none">Нет / не указана</option><option value="adhesion">Адгезия первого слоя</option><option value="warping">Коробление / отрыв углов</option><option value="stringing">Нити / подтёки</option><option value="clog">Засор / недоэкструзия</option><option value="supports">Поддержки / нависания</option><option value="shift">Сдвиг слоёв</option><option value="other">Другая проблема</option></select></div>
               <div class="field"><label for="actualNozzleTemp">Фактическая температура сопла, °C</label><input id="actualNozzleTemp" type="number" min="0" max="500" placeholder="Необязательно"></div>
               <div class="field"><label for="actualBedTemp">Фактическая температура стола, °C</label><input id="actualBedTemp" type="number" min="0" max="200" placeholder="Необязательно"></div>
               <div class="field"><label for="actualSpeed">Фактическая скорость, мм/с</label><input id="actualSpeed" type="number" min="1" max="1000" placeholder="Необязательно"></div>
-              <div class="field"><label for="printNote">Заметка о результате</label><input id="printNote" type="text" maxlength="400" placeholder="Например: ровный первый слой, без нитей"></div>
+              <div class="field full"><label for="printNote">Заметка о результате</label><textarea id="printNote" maxlength="400" rows="3" placeholder="Напишите или вставьте голосовую расшифровку: «Не липнет по краям, сопло двести пятнадцать, стол шестьдесят»"></textarea><span class="unit">Распознаются знакомые выражения на русском, английском, испанском, немецком и французском. Текст и аудио не отправляются; приложение не включает микрофон.</span></div>
+              <div class="field full learning-actions"><span class="unit">Можно писать разговорно, с опечатками и вперемешку на нескольких языках. Сначала проверьте разбор — поля меняются только после нажатия.</span><button class="secondary" id="analyzePrintNote" type="button">Разобрать заметку</button></div>
+              <div class="field full note-assist" id="noteAssist" hidden aria-live="polite"><p id="noteAssistSummary"></p><div class="note-assist-status" id="noteAssistStatus"></div><div class="learning-actions"><span class="unit">Исходная заметка сохранится без исправлений.</span><span><button id="applyNoteAssist" type="button" disabled>Применить подсказки</button> <button class="secondary" id="clearNoteAssist" type="button">Сбросить разбор</button></span></div></div>
             </div>
             <div class="learning-actions"><span class="unit">Локальные ориентиры появляются после трёх успешных примеров для той же связки.</span><span><button id="savePrintResult" type="button">Сохранить результат</button> <button class="secondary" id="exportPrintHistory" type="button">Экспорт истории</button></span></div>
             <div class="learning-status" id="learningStatus" aria-live="polite"></div>
@@ -336,6 +371,17 @@
             <p class="learning-intro">Геометрия, материал, оборудование и история печати разбираются отдельными модулями на этом компьютере. Это быстрые экспертные правила, не облачные ИИ-модели.</p>
             <div class="expert-grid"><div class="detected-block"><div class="detected-title">Геометрия</div><div class="detected-item" id="expertGeometry">Загрузите модель.</div></div><div class="detected-block"><div class="detected-title">Материал</div><div class="detected-item" id="expertMaterial">Выберите материал.</div></div><div class="detected-block"><div class="detected-title">Оборудование</div><div class="detected-item" id="expertHardware">Проверьте профиль принтера.</div></div><div class="detected-block"><div class="detected-title">Опыт печати</div><div class="detected-item" id="expertHistory">История появится после ваших записей.</div></div></div>
           </section>
+      <section class="card" id="feedbackCard">
+        <div class="section-title"><h2>Обратная связь</h2><span class="tag">Добровольно</span></div>
+        <p class="learning-intro">Опишите сбой, идею или непонятную формулировку. Перед отправкой приложение локально предложит категорию и язык, а также скроет распознанные адреса почты и номера телефонов. Отзыв уйдёт владельцу приложения только после просмотра разбора, отдельного согласия и нажатия кнопки отправки. Модель, история печати и файлы не прикладываются.</p>
+        <div class="fields">
+          <div class="field"><label for="feedbackCategory">О чём отзыв</label><select id="feedbackCategory"><option value="bug">Ошибка или сбой</option><option value="language">Язык, речь или непонятный текст</option><option value="print">Подбор настроек печати</option><option value="idea">Идея или предложение</option><option value="other">Другое</option></select></div>
+          <div class="field full"><label for="feedbackText">Ваш отзыв</label><textarea id="feedbackText" maxlength="1600" rows="4" placeholder="Опишите, что вы ожидали и что произошло. Можно писать разговорно; модель или историю печати не прикладывайте."></textarea><input id="feedbackTrap" type="text" tabindex="-1" aria-hidden="true" autocomplete="off" style="position:absolute;left:-10000px;width:1px;height:1px"></div>
+          <div class="field full learning-actions"><span class="unit">Сначала покажем, какие метки и очищенный текст будут отправлены.</span><button class="secondary" id="prepareFeedback" type="button">Подготовить отзыв</button></div>
+          <div class="field full note-assist" id="feedbackPreview" hidden aria-live="polite"><p id="feedbackPreviewSummary"></p><label class="license-accept"><input id="feedbackConsent" type="checkbox"><span>Я согласен(на) отправить показанный обработанный отзыв владельцу приложения. В заметке могут быть неизвестные нам личные данные — проверьте текст перед отправкой.</span></label><div class="learning-actions"><span class="unit" id="feedbackStatus">Ничего не отправлено.</span><button id="sendFeedback" type="button" disabled>Отправить отзыв</button></div></div>
+        </div>
+        <div class="learning-status" id="feedbackConfigStatus" aria-live="polite"></div>
+      </section>
           <section class="card">
             <div class="section-title"><h2>Калибровка профиля</h2><span class="tag" id="calibrationTag">PLA · сопло 0,4 мм</span></div>
             <p class="unit" id="calibrationIntro">Для нового филамента сначала проверьте первый слой и температуру; результаты сохраняйте в профиле конкретной катушки.</p>
@@ -348,21 +394,21 @@
     <footer class="app-footer"><span>СлойМастер 3D · © 2026 Панов Кирилл Александрович</span><span>Диапазоны ориентировочные · финальную проверку выполните в слайсере</span></footer>
   </main>
   <dialog id="licenseDialog" aria-labelledby="licenseTitle">
-    <div class="dialog-head"><div><div class="eyebrow">СОГЛАШЕНИЕ ПОЛЬЗОВАТЕЛЯ · 1.0.1</div><h2 id="licenseTitle">Лицензия СлойМастер 3D</h2><span class="unit">Правообладатель: Панов Кирилл Александрович</span></div></div>
+    <div class="dialog-head"><div><div class="eyebrow">СОГЛАШЕНИЕ ПОЛЬЗОВАТЕЛЯ · 1.1.0</div><h2 id="licenseTitle">Лицензия СлойМастер 3D</h2><span class="unit">Правообладатель: Панов Кирилл Александрович</span></div></div>
     <div class="dialog-body">
       <div class="license-box" tabindex="0">
-        <p><b>Лицензионное соглашение конечного пользователя</b><br>Версия 1.0.1 · дата: 5 октября 2026 года<br>Правообладатель: Панов Кирилл Александрович («Правообладатель»). Применимое право: Российская Федерация.</p>
+        <p><b>Лицензионное соглашение конечного пользователя</b><br>Версия 1.1.0 · дата: 6 октября 2026 года<br>Правообладатель: Панов Кирилл Александрович («Правообладатель»). Применимое право: Российская Федерация.</p>
         <h3>1. Принятие условий</h3><p>Нажимая «Принять и продолжить», вы заключаете настоящее соглашение с Правообладателем. Если вы не согласны, не запускайте и удалите приложение.</p>
         <h3>2. Предоставляемые права</h3><p>Пока вы соблюдаете соглашение, Правообладатель предоставляет вам неисключительное, безвозмездное, непередаваемое право устанавливать и использовать приложение для личных и ознакомительных целей. Вы можете бесплатно передавать другим лицам исходный неизменённый пакет целиком вместе с этим соглашением и уведомлением об авторских правах, либо делиться официальной ссылкой на релиз.</p>
         <h3>3. Ограничения</h3><p>Без отдельного письменного разрешения нельзя продавать или сдавать приложение в аренду, включать его в платный продукт, публиковать изменённые сборки, выдавать приложение или его части за свою разработку, удалять уведомления об авторских правах либо предоставлять сублицензию. Ограничения не затрагивают права, которые нельзя исключить по применимому закону.</p>
         <h3>4. Интеллектуальные права</h3><p>Исключительные права на приложение, его исходный код, интерфейс и фирменные материалы принадлежат Правообладателю, если явно не указано иное. Это соглашение не передаёт право собственности. Ваши модели, профили и записи печати остаются вашими.</p>
-        <h3>5. Данные и обновления</h3><p>Приложение хранит настройки и историю печати локально. Проверка публичной ленты обновлений, если она настроена, отправляет только HTTPS-запрос к её адресу. Передача моделей, истории или телеметрии не включена. Отдельные будущие сетевые функции потребуют отдельного согласия.</p>
+        <h3>5. Данные и обновления</h3><p>Приложение хранит настройки и историю печати локально. Для передачи подготовленного проекта оно запускает защищённый случайным токеном локальный помощник, доступный только через 127.0.0.1. Только после нажатия «Подготовить проект» повернутая модель и настройки передаются установленному слайсеру; промежуточные файлы сохраняются в папке приложения в локальном профиле Windows и могут быть удалены пользователем. В интернет модель, история и телеметрия не передаются. Проверка публичной ленты обновлений, если она настроена, отправляет только HTTPS-запрос к её адресу. Отправка отзыва — отдельная добровольная функция: только после просмотра текста, согласия и нажатия кнопки владелец получает очищенный текст отзыва, выбранную категорию, языковые метки и версию приложения. Удаление контактов распознаётся автоматически не всегда; перед отправкой проверьте текст. Файлы, модель и журнал печати к отзыву не прикладываются.</p>
         <h3>6. Отказ от гарантий и ответственность</h3><p>Приложение предоставляется «как есть». Рекомендации ориентировочные и не заменяют техпаспорт филамента, профиль слайсера и проверку оборудования. Перед печатью оцените безопасность материала и принтера. В пределах, разрешённых законом, Правообладатель не гарантирует безошибочную работу и не отвечает за косвенные убытки. Ничто в соглашении не ограничивает ответственность, которую нельзя ограничить по закону.</p>
         <h3>7. Срок и прекращение</h3><p>Лицензия действует до прекращения вами использования или нарушения условий. При существенном нарушении предоставленные права прекращаются; удалите имеющиеся копии, кроме случаев, когда обязательный закон предусматривает иное.</p>
         <h3>8. Применимое право</h3><p>Соглашение регулируется правом Российской Федерации. Права потребителя и иные обязательные гарантии, которые закон предоставляет пользователю, сохраняются.</p>
         <p>Полный текст включён в файл <b>LICENSE_RU.txt</b> в комплекте приложения. Это пользовательское соглашение не является юридическим заключением.</p>
       </div>
-      <label class="license-accept"><input id="licenseAcceptCheck" type="checkbox"><span>Я прочитал(а) и принимаю лицензионное соглашение версии 1.0.1.</span></label>
+      <label class="license-accept"><input id="licenseAcceptCheck" type="checkbox"><span>Я прочитал(а) и принимаю лицензионное соглашение версии 1.1.0.</span></label>
       <div class="license-actions"><button id="declineLicense" class="about-button" type="button">Не принимаю</button><button id="acceptLicense" type="button" disabled>Принять и продолжить</button></div>
       <div class="license-status" id="licenseStatus" aria-live="polite"></div>
     </div>
@@ -370,22 +416,22 @@
   <dialog id="helpDialog" aria-labelledby="helpTitle">
     <div class="dialog-head"><div><div class="eyebrow">СЛОЙМАСТЕР 3D</div><h2 id="helpTitle">Предпечатная студия</h2><span class="unit">Локальное приложение для анализа FDM-моделей</span></div><button id="closeHelp" type="button" aria-label="Закрыть окно">Закрыть</button></div>
     <div class="dialog-body">
-      <p>СлойМастер объединяет просмотр модели, геометрические предупреждения, стартовые параметры, локальную историю результатов печати и четыре экспертных правила. Модель и история остаются на этом компьютере; интернет используется только для проверки публичного манифеста обновлений, если вы сами настроите его адрес.</p>
+      <p>СлойМастер объединяет просмотр модели, геометрические предупреждения, стартовые параметры, локальную историю результатов печати и четыре экспертных правила. Модель и история остаются на этом компьютере. При нажатии «Подготовить проект» приложение локально передаёт повернутую копию модели и настройки поддерживаемому слайсеру; эти файлы остаются в Windows и не загружаются в интернет. Проверка обновлений не передаёт файлы; отправка отзыва — отдельный добровольный шаг с предварительным просмотром.</p>
       <h3>Что анализирует приложение</h3>
        <ul><li>Габариты, площадь, объём, нависания и предполагаемое пятно контакта.</li><li>Открытые и неманифолдные рёбра — ограниченная проверка сетки, не полное исправление.</li><li>Поддерживаемые сетки: STL, 3MF, OBJ, PLY, AMF, OFF, glTF 2.0 и GLB.</li><li>Совместимость стартового диапазона материала с пределами профиля/паспорта, если они указаны.</li><li>Локальная статистика отмеченных удачных и неудачных печатей, включая медианные фактические настройки после трёх успешных записей.</li></ul>
       <h3>Как использован анализ похожих продуктов</h3>
       <p>В популярных решениях настройки разделены между профилем принтера, материалом и процессом; предусмотрены автоориентация, поддержка, калибровка и проверка/ремонт геометрии. Здесь эти идеи сведены в локальную предпечатную проверку перед передачей модели слайсеру.</p>
       <ul><li><a href="https://github.com/OrcaSlicer/OrcaSlicer/wiki/how_to_create_profiles" target="_blank" rel="noreferrer">OrcaSlicer: профиль принтера + филамента + процесса</a></li><li><a href="https://github.com/OrcaSlicer/OrcaSlicer/wiki/prepare_auto_orient" target="_blank" rel="noreferrer">OrcaSlicer: оценка вариантов ориентации</a></li><li><a href="https://help.prusa3d.com/article/support-material_1698?product=cw1" target="_blank" rel="noreferrer">PrusaSlicer: поддержки и ручная коррекция</a></li><li><a href="https://github.com/bambulab/BambuStudio" target="_blank" rel="noreferrer">Bambu Studio: пластины, поддержки и автоориентация</a></li><li><a href="https://marketplace.ultimaker.com/app/cura/materials" target="_blank" rel="noreferrer">Cura: библиотека материалов и дополнений</a></li><li><a href="https://marketplace.autodesk.com/apps/2a6dc1ec-c63f-4633-833e-7a2084e012ca" target="_blank" rel="noreferrer">Autodesk 3D Printing Essentials: подготовка CAD и ремонт сеток</a></li><li><a href="https://mesh2print.com/" target="_blank" rel="noreferrer">Mesh2Print: работа с форматами и мультицветными сетками</a></li></ul>
       <h3>Границы рекомендаций</h3>
-       <p>Экспертные модули сейчас используют локальные правила, а не подключённые генеративные ИИ-агенты. Физические печати приложение само не наблюдает: результат вводится вручную. Оно не создаёт G-code и не исправляет модель автоматически. Для сетевого ИИ и сбора данных сообщества понадобятся отдельный защищённый сервер, адрес API и явное согласие каждого пользователя; такой сбор в этой версии отключён. Проверьте профиль катушки, принтера, поддержки и первый слой в слайсере. Сохранённый профиль или COM-порт сам по себе не доказывает подключение и возможности устройства. STEP/IGES, glTF со сжатием и точная толщина стенок требуют отдельной проверки/экспорта.</p>
+       <p>Экспертные модули используют локальные правила, а не генеративные ИИ-модели. Разбор заметок работает с несколькими языками, обычными опечатками и распространёнными фразами распознавания речи, но не переводит произвольный текст. Голос можно расшифровать средствами системы и вставить текст; приложение не включает микрофон и не отправляет аудио. Физические печати приложение само не наблюдает: результат вводится вручную. Оно не создаёт G-code и не отправляет задание на принтер. Автоподготовка проекта доступна для односопловых профилей OrcaSlicer, Bambu Studio и PrusaSlicer; прочие найденные программы можно открыть вручную с сохранёнными рекомендациями. Выбор локального профиля не подтверждает, что соответствующий принтер подключён. Проверьте материал, температуры, поддержку, раскладку и предпросмотр перед печатью. STEP/IGES, glTF со сжатием и точная толщина стенок требуют отдельной проверки/экспорта.</p>
     </div>
   </dialog>
   <dialog id="updateDialog" aria-labelledby="updateTitle">
-    <div class="dialog-head"><div><div class="eyebrow">СЛОЙМАСТЕР 3D</div><h2 id="updateTitle">Обновления приложения</h2><span class="unit">Текущая версия 1.0.1</span></div><button id="closeUpdates" type="button" aria-label="Закрыть окно">Закрыть</button></div>
+    <div class="dialog-head"><div><div class="eyebrow">СЛОЙМАСТЕР 3D</div><h2 id="updateTitle">Обновления приложения</h2><span class="unit">Текущая версия 1.1.0</span></div><button id="closeUpdates" type="button" aria-label="Закрыть окно">Закрыть</button></div>
     <div class="dialog-body">
       <div class="dialog-form">
         <div class="field"><label for="updateFeedUrl">Публичная HTTPS-ссылка на JSON-манифест</label><input id="updateFeedUrl" type="url" placeholder="https://example.com/sloymaster/releases.json" autocomplete="url"></div>
-        <div class="dialog-footnote">Манифест должен содержать версию и HTTPS-ссылку на выпуск: { "version": "1.0.1", "url": "https://…", "notes": "Что нового" }. Хостинг манифеста должен разрешать CORS-запросы из локального приложения. Проверка выполняется при запуске не чаще раза в сутки и вручную по кнопке. Передаётся только запрос манифеста — печати и файлы не загружаются. Загрузка и установка выполняются вами вручную.</div>
+        <div class="dialog-footnote">Манифест должен содержать версию и HTTPS-ссылку на выпуск: { "version": "1.1.0", "url": "https://…", "notes": "Что нового" }. Хостинг манифеста должен разрешать CORS-запросы из локального приложения. Проверка выполняется при запуске не чаще раза в сутки и вручную по кнопке. Передаётся только запрос манифеста — печати и файлы не загружаются. Загрузка и установка выполняются вами вручную.</div>
         <div class="dialog-actions"><button id="saveUpdateFeed" type="button">Сохранить адрес</button><button id="checkUpdates" type="button">Проверить сейчас</button></div>
         <div class="learning-status" id="updateStatus" aria-live="polite">Источник обновлений не настроен.</div>
       </div>
@@ -426,10 +472,22 @@
       list.append(row);
     }
   }
-  function readWindowsMetadata() {
+  function updateSlicerActionState(){
+    const button=$('prepareSlicerProject');if(!button)return;
+    const target=$('slicerTarget'),slicer=windowsMetadata?.slicers?.[Number(target.value)],profile=selectedMachineProfile;
+    const supported=!!(slicer&&profile&&profile.slicer===slicer.name&&profile.path&&['orca','bambu','prusa'].includes(slicer.adapter));
+    button.disabled=!supported||!mesh||location.protocol!=='http:';
+    if(!mesh)$('slicerStatus').textContent='Сначала выберите и проанализируйте модель.';
+    else if(location.protocol!=='http:')$('slicerStatus').textContent='Нативный мост доступен при запуске приложения через ярлык Windows.';
+    else if(!slicer)$('slicerStatus').textContent='Выберите совместимый слайсер и профиль этого слайсера.';
+    else if(!profile)$('slicerStatus').textContent=`Выбран ${slicer.name}. Выберите сохранённый профиль и нажмите «Применить».`;
+    else if(profile.slicer!==slicer.name)$('slicerStatus').textContent='Профиль относится к другому слайсеру. Выберите программу, указанную у этого профиля.';
+    else $('slicerStatus').textContent=`Проект откроется в ${slicer.name} с выбранным профилем и параметрами. Проверьте температуры и предпросмотр до печати.`;
+  }
+  async function readWindowsMetadata() {
     const status=$('windowsStatus'), params=new URLSearchParams(location.hash.slice(1));
-    if(!params.has('sys')){
-      status.textContent='Нет данных об оборудовании. Закройте это окно и откройте приложение через ярлык на рабочем столе, чтобы помощник Windows передал сведения.';
+    if(!params.has('sys')&&!(location.protocol==='http:'&&location.hostname==='127.0.0.1')){
+      status.textContent='Нет сведений Windows. Запустите приложение через ярлык, чтобы определить установленные слайсеры и профили.';
       $('detectedProfile').replaceChildren(new Option('Профили не переданы',''));
       showDetectedItems('windowsPrinters',[],'Данные не переданы.',()=>({title:'',detail:''}));
       showDetectedItems('serialPorts',[],'Данные не переданы.',()=>({title:'',detail:''}));
@@ -438,10 +496,11 @@
       return;
     }
     try {
-      const encoded=params.get('sys').replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(params.get('sys').length/4)*4,'=');
-      const bytes=Uint8Array.from(atob(encoded),ch=>ch.charCodeAt(0));
-      const data=JSON.parse(new TextDecoder().decode(bytes));
+      let data;
+      if(params.has('sys')){const encoded=params.get('sys').replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(params.get('sys').length/4)*4,'=');const bytes=Uint8Array.from(atob(encoded),ch=>ch.charCodeAt(0));data=JSON.parse(new TextDecoder().decode(bytes));}
+      else {const token=new URLSearchParams(location.search).get('token')||'',response=await fetch('/api/info',{headers:{'X-SloyMaster-Token':token},cache:'no-store'});if(!response.ok)throw new Error('Не удалось связаться с помощником Windows.');data=await response.json();}
       if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('metadata must be an object');
+      windowsMetadata=data;
       const records=key=>Array.isArray(data[key])?data[key].filter(item=>item&&typeof item==='object'&&!Array.isArray(item)):[];
       const printers=records('printers'), ports=records('serialPorts'), slicersFound=records('slicers'), profiles=records('profiles');
       status.textContent='Получены сведения, собранные помощником Windows.';
@@ -451,6 +510,13 @@
       }));
       showDetectedItems('serialPorts',ports,'Последовательные порты не найдены.',item=>({title:item.name||item.deviceId||'Устройство без имени',detail:item.deviceId||''}));
       showDetectedItems('slicers',slicersFound,'Слайсеры не найдены.',item=>({title:item.name||'Слайсер без имени',detail:[item.version,item.path].filter(Boolean).join(' · ')}));
+
+      const slicerTarget=$('slicerTarget');slicerTarget.replaceChildren(new Option('Выберите совместимый слайсер…',''));
+      const adapterOf=item=>item.adapter||(/orca/i.test(`${item.name} ${item.path}`)?'orca':/bambu/i.test(`${item.name} ${item.path}`)?'bambu':/prusa/i.test(`${item.name} ${item.path}`)?'prusa':'');
+      const compatibleSlicers=slicersFound.map((item,index)=>({item,index,adapter:adapterOf(item)})).filter(entry=>entry.adapter&&entry.item.path);
+      for(const entry of compatibleSlicers){const option=new Option(`${entry.item.name}${entry.item.version?` · ${entry.item.version}`:''}`,String(entry.index));option.dataset.adapter=entry.adapter;slicerTarget.append(option);}
+      slicerTarget.disabled=compatibleSlicers.length===0;if(compatibleSlicers.length===1)slicerTarget.value=String(compatibleSlicers[0].index);
+      slicerTarget.onchange=()=>{if(selectedMachineProfile&&selectedMachineProfile.slicer!==windowsMetadata.slicers[Number(slicerTarget.value)]?.name){selectedMachineProfile=null;selectedMachineProfileIndex=null;$('detectedProfile').value='';$('applyDetectedProfile').disabled=true;}updateSlicerActionState();};
 
       const selector=$('detectedProfile'), apply=$('applyDetectedProfile'), usable=new Map();
       const profileValues=profile=>{
@@ -472,10 +538,12 @@
       for(const [index,{profile}] of usable){const option=document.createElement('option');option.value=String(index);const state=profile.active===true?'Активный профиль':profile.active===false?'Сохранённый кандидат':'Статус не указан';option.textContent=`${state}: ${profile.name||`Профиль ${index+1}`}`;selector.append(option);}
       selector.disabled=usable.size===0;apply.disabled=true;
       const selectedProfile=()=>usable.get(Number(selector.value));
-      selector.addEventListener('change',()=>{apply.disabled=!selectedProfile();});
+      selector.addEventListener('change',()=>{apply.disabled=!selectedProfile();const profile=selectedProfile()?.profile,matching=compatibleSlicers.find(entry=>entry.item.name===profile?.slicer);if(matching)slicerTarget.value=String(matching.index);updateSlicerActionState();});
       const applySelected=()=>{
         const selected=selectedProfile();if(!selected)return;
         const {profile,values}=selected, changed=[];
+        selectedMachineProfileIndex=Number(selector.value);selectedMachineProfile=profile;rememberedProfile={path:profile.path||'',name:profile.name||'',slicer:profile.slicer||''};
+        const matching=compatibleSlicers.find(entry=>entry.item.name===profile.slicer);if(matching)slicerTarget.value=String(matching.index);
         if(profile.name){els.printerLabel.value=profile.name;changed.push(`профиль «${profile.name}» для локальной истории`);}
         for(const [key,id,label] of [['x','bedX','X'],['y','bedY','Y'],['z','bedZ','Z']]){
           if(values[key]!==null){$(id).value=String(values[key]);changed.push(`${label} ${fmt(values[key],1)} мм`);}
@@ -490,19 +558,22 @@
           if(values[key]!==null){$(id).value=String(values[key]);$(id).dataset.valueSource='сохранённый профиль';changed.push(`${label} ${fmt(values[key],1)}${key==='maxFlow'?' мм³/с':' °C'}`);}
         }
         recalc();
-        status.textContent=`Профиль «${profile.name||'без имени'}» применён к полям: ${changed.join(', ')}. Проверьте значения.`;
+        status.textContent=`Профиль «${profile.name||'без имени'}» применён к полям: ${changed.join(', ')}. Проверьте значения.`;savePreferences();updateSlicerActionState();
       };
       apply.addEventListener('click',applySelected);
       const activeProfiles=[...usable].filter(([,item])=>item.profile.active===true);
-      if(activeProfiles.length===1){selector.value=String(activeProfiles[0][0]);apply.disabled=false;applySelected();}
+      const rememberedProfiles=[...usable].filter(([,item])=>rememberedProfile&&item.profile.slicer===rememberedProfile.slicer&&((rememberedProfile.path&&item.profile.path===rememberedProfile.path)||(!rememberedProfile.path&&item.profile.name===rememberedProfile.name)));
+      if(rememberedProfiles.length===1){selector.value=String(rememberedProfiles[0][0]);apply.disabled=false;applySelected();status.textContent+=' Использован сохранённый выбор профиля.';}
+      else if(activeProfiles.length===1){selector.value=String(activeProfiles[0][0]);apply.disabled=false;applySelected();status.textContent+=' Профиль выбран конфигурацией слайсера.';}
+      else if(activeProfiles.length===0&&usable.size===1){const [onlyIndex]=usable.keys();selector.value=String(onlyIndex);apply.disabled=false;applySelected();status.textContent+=' Найден один локальный профиль; он подставлен как кандидат. Проверьте модель принтера перед передачей.';}
       else if(usable.size>0){
         status.textContent+=activeProfiles.length===0
-          ?' Ни один применимый профиль не отмечен активным. Выберите профиль и нажмите «Применить».'
-          :' Отмечено несколько активных профилей. Выберите нужный и нажмите «Применить».';
+          ?' Автоматически выбрать один из нескольких сохранённых профилей нельзя. Выберите профиль и нажмите «Применить».'
+          :' Найдено несколько активных профилей. Выберите нужный и нажмите «Применить».';
       }
     } catch {
-      status.textContent='Не удалось прочитать данные оборудования. Повторно откройте приложение через ярлык на рабочем столе.';
-      for(const id of ['windowsPrinters','serialPorts','slicers','profileDetails'])showDetectedItems(id,[],'Данные не прочитаны.',()=>({title:'',detail:''}));
+      status.textContent='Не удалось прочитать данные оборудования. Повторно откройте приложение через ярлык Windows.';
+      for(const id of ['windowsPrinters','serialPorts','slicers','profileDetails'])showDetectedItems(id,[],'Данные не прочитаны.',()=>({title:'',detail:''}));updateSlicerActionState();
     }
   }
   function fmt(n, places=1) { return Number(n).toLocaleString('ru-RU',{maximumFractionDigits:places}); }
@@ -731,7 +802,12 @@
       const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,cross=Math.hypot(nx,ny,nz);
       if(cross>1e-12&&Math.abs(nz)/cross>=.9)contactArea+=cross/2;
     }
-    const bestIndex=over.indexOf(Math.min(...over));
+    const bestIndex=over.indexOf(Math.min(...over)),axisContact=Array(6).fill(0);
+    for(let i=0;i<n;i++){
+      const j=i*9,ux=a[j+3]-a[j],uy=a[j+4]-a[j+1],uz=a[j+5]-a[j+2],vx=a[j+6]-a[j],vy=a[j+7]-a[j+1],vz=a[j+8]-a[j+2],nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,cross=Math.hypot(nx,ny,nz);if(cross<1e-12)continue;
+      const coords=[[a[j],a[j+1],a[j+2]],[a[j+3],a[j+4],a[j+5]],[a[j+6],a[j+7],a[j+8]]],normal=[nx,ny,nz];
+      for(let k=0;k<6;k++){const[axis,sign]=axes[k],floor=sign>0?min[axis]:-max[axis],tol=Math.max(.03,dims[axis]*.0001);if(normal[axis]*sign/cross<-.9&&coords.every(point=>sign*point[axis]<=floor+tol))axisContact[k]+=cross/2;}
+    }
     let topology={checked:false,boundaryEdges:0,nonManifoldEdges:0};
     if(n<=100000){
       const tolerance=Math.max(1e-7,Math.hypot(...dims)*1e-8),vertices=new Map(),edges=new Map();let nextVertex=0;
@@ -745,7 +821,25 @@
       let boundaryEdges=0,nonManifoldEdges=0;for(const count of edges.values()){if(count===1)boundaryEdges++;else if(count>2)nonManifoldEdges++;}
       topology={checked:true,boundaryEdges,nonManifoldEdges};
     }
-    return { ...parsed,min,max,dims,area,volume:Math.abs(signedVol),signedVol,degenerate,over,overPct,contactArea,bestIndex,bestPct:area?over[bestIndex]/area*100:0,axes,topology };
+    return { ...parsed,min,max,dims,area,volume:Math.abs(signedVol),signedVol,degenerate,over,overPct,contactArea,axisContact,bestIndex,bestPct:area?over[bestIndex]/area*100:0,axes,topology };
+  }
+  function orientationMatrix(index,twist=0){
+    const base=[[0,0,-1,0,1,0,1,0,0],[0,0,1,0,1,0,-1,0,0],[1,0,0,0,0,-1,0,1,0],[1,0,0,0,0,1,0,-1,0],[1,0,0,0,1,0,0,0,1],[1,0,0,0,-1,0,0,0,-1]][index];
+    if(twist===0)return base;
+    const rz=[0,-1,0,1,0,0,0,0,1],out=Array(9).fill(0);for(let row=0;row<3;row++)for(let col=0;col<3;col++)for(let k=0;k<3;k++)out[row*3+col]+=rz[row*3+k]*base[k*3+col];return out;
+  }
+  function getOrientedBounds(source,matrix){
+    const lo=source.min,hi=source.max,outMin=[Infinity,Infinity,Infinity],outMax=[-Infinity,-Infinity,-Infinity];
+    for(let mask=0;mask<8;mask++){const p=[mask&1?hi[0]:lo[0],mask&2?hi[1]:lo[1],mask&4?hi[2]:lo[2]];for(let axis=0;axis<3;axis++){const value=matrix[axis*3]*p[0]+matrix[axis*3+1]*p[1]+matrix[axis*3+2]*p[2];outMin[axis]=Math.min(outMin[axis],value);outMax[axis]=Math.max(outMax[axis],value);}}
+    return {min:outMin,max:outMax,dims:outMax.map((value,index)=>value-outMin[index])};
+  }
+  function chooseOrientation(source,goal,bedX,bedY,bedZ){
+    const weights={balanced:[.45,.35,.2],detail:[.7,.12,.18],quality:[.7,.12,.18],strength:[.15,.35,.5],supports:[.8,.15,.05],fast:[.25,.65,.1]}[goal]||[.45,.35,.2],maxContact=Math.max(1,...source.axisContact),candidates=[];
+    for(let axis=0;axis<6;axis++)for(const twist of [0,90]){
+      const matrix=orientationMatrix(axis,twist),bounds=getOrientedBounds(source,matrix),[x,y,z]=bounds.dims,fit=z<=bedZ&&((x<=bedX&&y<=bedY)||(x<=bedY&&y<=bedX)),support=Math.max(0,source.over[axis]-source.axisContact[axis])/Math.max(1,source.area),height=Math.min(1,z/Math.max(1,bedZ)),contactLoss=1-Math.min(1,source.axisContact[axis]/maxContact),score=weights[0]*support+weights[1]*height+weights[2]*contactLoss+(fit?0:10);
+      candidates.push({axis,twist,matrix,bounds,fit,supportPct:support*100,contactArea:source.axisContact[axis],score});
+    }
+    return candidates.sort((a,b)=>a.score-b.score)[0];
   }
   function addSetting(icon,name,value,note='') {
     const div=document.createElement('div'); div.className='setting';
@@ -753,6 +847,7 @@
     $('settings').append(div);
   }
   let previewYaw=.62,previewPitch=-.48,previewZoom=1,previewDrag=null,showOverhang=true;
+  let windowsMetadata=null,selectedMachineProfileIndex=null,selectedMachineProfile=null,rememberedProfile=null,bestOrientation=null;
   const preferenceKey='stlPrintAdvisor.preferences.v1';
   const printHistoryKey='stlPrintAdvisor.printHistory.v1';
   const updatePrefsKey='stlPrintAdvisor.updates.v1';
@@ -761,14 +856,16 @@
   const licenseAcceptanceKey=`stlPrintAdvisor.licenseAccepted.${appVersion}`;
   let licenseAcceptedThisSession=false;
   function savePreferences(){
-    try{localStorage.setItem(preferenceKey,JSON.stringify({material:els.material.value,nozzle:els.nozzle.value,goal:els.goal.value,enclosure:els.enclosure.value,filler:els.filler.value,nozzleType:els.nozzleType.value,maxNozzleTemp:els.maxNozzleTemp.value,maxBedTemp:els.maxBedTemp.value,maxFlow:els.maxFlow.value,bedX:$('bedX').value,bedY:$('bedY').value,bedZ:$('bedZ').value,printerLabel:els.printerLabel.value.slice(0,80)}));}catch{}
+    try{localStorage.setItem(preferenceKey,JSON.stringify({material:els.material.value,nozzle:els.nozzle.value,goal:els.goal.value,enclosure:els.enclosure.value,filler:els.filler.value,nozzleType:els.nozzleType.value,maxNozzleTemp:els.maxNozzleTemp.value,maxBedTemp:els.maxBedTemp.value,maxFlow:els.maxFlow.value,bedX:$('bedX').value,bedY:$('bedY').value,bedZ:$('bedZ').value,printerLabel:els.printerLabel.value.slice(0,80),selectedProfile:rememberedProfile,slicer:{layerHeight:$('slicerLayerHeight').value,firstLayerHeight:$('slicerFirstLayerHeight').value,walls:$('slicerWalls').value,infill:$('slicerInfill').value,pattern:$('slicerPattern').value,support:$('slicerSupport').value,nozzleTemp:$('slicerNozzleTemp').value,bedTemp:$('slicerBedTemp').value,speed:$('slicerSpeed').value,brim:$('slicerBrim').value,manual:['slicerLayerHeight','slicerFirstLayerHeight','slicerWalls','slicerInfill','slicerPattern','slicerSupport','slicerNozzleTemp','slicerBedTemp','slicerSpeed','slicerBrim'].filter(id=>$(id).dataset.manual).map(id=>id)}}));}catch{}
   }
   function restorePreferences(){
     try{
       const saved=JSON.parse(localStorage.getItem(preferenceKey)||'{}');
+      rememberedProfile=saved.selectedProfile&&typeof saved.selectedProfile==='object'?saved.selectedProfile:null;
       for(const id of ['material','goal','enclosure','filler','nozzleType'])if(saved[id]&&[...$(id).options].some(option=>option.value===saved[id]))$(id).value=saved[id];
       for(const id of ['maxNozzleTemp','maxBedTemp','maxFlow'])if(saved[id]!==undefined)$(id).value=saved[id];
       if(typeof saved.printerLabel==='string')els.printerLabel.value=saved.printerLabel.slice(0,80);
+      if(saved.slicer&&typeof saved.slicer==='object')for(const [id,key] of Object.entries({slicerLayerHeight:'layerHeight',slicerFirstLayerHeight:'firstLayerHeight',slicerWalls:'walls',slicerInfill:'infill',slicerPattern:'pattern',slicerSupport:'support',slicerNozzleTemp:'nozzleTemp',slicerBedTemp:'bedTemp',slicerSpeed:'speed',slicerBrim:'brim'})){if(saved.slicer[key]!==undefined){$(id).value=String(saved.slicer[key]);if(saved.slicer.manual?.includes(id))$(id).dataset.manual='1';}}
       if(saved.nozzle){let option=[...els.nozzle.options].find(item=>item.value===String(saved.nozzle));if(!option){option=document.createElement('option');option.value=String(saved.nozzle);option.textContent=`${fmt(Number(saved.nozzle),2)} мм · сохранено`;els.nozzle.append(option);}els.nozzle.value=option.value;}
       for(const id of ['bedX','bedY','bedZ'])if(Number(saved[id])>0)$(id).value=String(saved[id]);
     }catch{}
@@ -782,6 +879,137 @@
     return readPrintHistory().filter(item=>item.material===els.material.value&&item.filler===els.filler.value&&Math.abs(Number(item.nozzle)-nozzle)<.001&&(item.printer||'не указан')===printer);
   }
   const issueNames={adhesion:'адгезия первого слоя',warping:'коробление',stringing:'нити / подтёки',clog:'засор / недоэкструзия',supports:'поддержки',shift:'сдвиг слоёв',other:'другая проблема'};
+  const noteLexicon={
+    adhesion:{ru:['не липнет','нелипнет','не держится','первый слой отходит','отлипает','отлипал','отлипали','отклеивается от стола','отходит от стола','ne lipnet','otlipayet'],en:['not sticking','wont stick','won t stick','doesnt stick','doesn t stick','first layer lifts','detached from bed','poor bed adhesion'],es:['no se pega','primera capa se despega','se despega'],de:['haftet nicht','erste schicht hebt ab','loest sich'],fr:['ne colle pas','n adhere pas','premiere couche se decolle']},
+    warping:{ru:['коробит','коробление','повело углы','углы поднимаются','отрыв углов'],en:['warping','warped','corners lift','curling'],es:['se deforma','esquinas se levantan'],de:['verzieht sich','ecken heben sich'],fr:['gondole','se deforme','coins se soulevent']},
+    stringing:{ru:['нитит','нити между деталями','нитей','без нитей','паутина','нитки','stringing'],en:['stringing','strings between','strings','no strings','without strings','hairy print','no stringing'],es:['hilos entre','sin hilos','telarana'],de:['zieht faden','faeden','kein faden'],fr:['fils entre','pas de fils','sans fils','cheveux']},
+    clog:{ru:['засор','недоэкструзия','подэкструзия','не подает пластик'],en:['clogged nozzle','under extrusion','underextrusion','no extrusion'],es:['boquilla atascada','subextrusion'],de:['duese verstopft','unterextrusion'],fr:['buse bouchee','sous extrusion']},
+    supports:{ru:['поддержки','поддержка','нависания'],en:['supports needed','support failure','overhangs'],es:['soportes','voladizos'],de:['stuetzen','stuetzstruktur'],fr:['supports','porte a faux']},
+    shift:{ru:['сдвиг слоев','смещение слоев','слои сдвинуты'],en:['layer shift','layers shifted','layer moved'],es:['desplazamiento de capas'],de:['schichtverschiebung','schichten verschoben'],fr:['decalage des couches']}
+  };
+  const noteNormalize=value=>String(value??'').slice(0,400).normalize('NFKC').toLowerCase().replace(/ё/g,'е').normalize('NFD').replace(/\p{M}/gu,'').replace(/(\d)[,.](?=\d)/g,'$1§').replace(/[^\p{L}\p{N}§]+/gu,' ').replace(/§/g,'.').trim().replace(/\s+/g,' ');
+  const keyboardEnToRu={q:'й',w:'ц',e:'у',r:'к',t:'е',y:'н',u:'г',i:'ш',o:'щ',p:'з','[':'х',']':'ъ',a:'ф',s:'ы',d:'в',f:'а',g:'п',h:'р',j:'о',k:'л',l:'д',';':'ж',"'":'э',z:'я',x:'ч',c:'с',v:'м',b:'и',n:'т',m:'ь',',':'б','.':'ю'};
+  const keyboardRuToEn=Object.fromEntries(Object.entries(keyboardEnToRu).map(([latin,cyrillic])=>[cyrillic,latin]));
+  const swapKeyboard=(text,map)=>text.split(' ').map(word=>[...word].map(char=>map[char]||char).join('')).join(' ');
+  const negationWords=new Set(['не','нет','без','no','not','never','without','sin','kein','keine','pas','sans','dont','doesnt','isnt']);
+  const ruNumberWords={ноль:0,один:1,одна:1,одно:1,два:2,две:2,три:3,четыре:4,пять:5,шесть:6,семь:7,восемь:8,девять:9,десять:10,одиннадцать:11,двенадцать:12,тринадцать:13,четырнадцать:14,пятнадцать:15,шестнадцать:16,семнадцать:17,восемнадцать:18,девятнадцать:19,двадцать:20,тридцать:30,сорок:40,пятьдесят:50,шестьдесят:60,семьдесят:70,восемьдесят:80,девяносто:90,сто:100,двести:200,триста:300,четыреста:400,пятьсот:500,шестьсот:600,семьсот:700,восемьсот:800,девятьсот:900};
+  const enNumberWords={zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90,hundred:100};
+  function expandSpokenNumbers(text){
+    const words=[...text.matchAll(/[\p{L}\p{N}]+/gu)],known={...ruNumberWords,...enNumberWords},replacements=[];
+    for(let i=0;i<words.length;i++){
+      if(!(words[i][0] in known))continue;
+      let j=i,sequence=[],lastNumber=j;
+      while(j<words.length&&sequence.length<7){const word=words[j][0];if(word in known){sequence.push(word);lastNumber=j;j++;continue;}if((word==='and'||word==='и')&&j+1<words.length&&words[j+1][0] in known){sequence.push(word);j++;continue;}break;}
+      let value=0,group=0;
+      for(const word of sequence){if(word==='and'||word==='и')continue;const amount=known[word];if(word==='hundred'){group=Math.max(1,group)*100;}else if(amount>=100){group+=amount;}else group+=amount;}
+      value=value+group;
+      if(Number.isFinite(value)&&sequence.length){replacements.push({start:words[i].index,end:words[lastNumber].index+words[lastNumber][0].length,value});i=lastNumber;}
+    }
+    let out=text;for(const item of replacements.reverse())out=out.slice(0,item.start)+String(item.value)+out.slice(item.end);return out;
+  }
+  function editDistance(a,b){if(Math.abs(a.length-b.length)>2)return 3;let row=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){const next=[i];for(let j=1;j<=b.length;j++)next[j]=Math.min(next[j-1]+1,row[j]+1,row[j-1]+(a[i-1]===b[j-1]?0:1));row=next;}return row[b.length];}
+  function parsePrintNote(input){
+    const normalized=noteNormalize(input);if(!normalized)return {empty:true,language:'текст пуст',issues:[],outcome:null,metrics:{},messages:['Добавьте заметку или текст голосовой расшифровки.'],canApply:false};
+    const variants=[{text:normalized,layout:false},{text:swapKeyboard(normalized,keyboardEnToRu),layout:true},{text:swapKeyboard(normalized,keyboardRuToEn),layout:true}];
+    const supportedLanguages=new Set(),issueMatches=new Map(),fuzzyTerms={
+      adhesion:{ru:['липнет','отлипает','прилипает'],en:['adhesion','sticking','adheres'],es:['despega','pegado'],de:['haftet'],fr:['adhere','colle']},
+      warping:{ru:['коробит','коробление'],en:['warping','warped','curling'],es:['deforma'],de:['verzieht'],fr:['gondole','deforme']},
+      stringing:{ru:['нитит','паутина','паутинаа','нитки','нитей'],en:['stringing','stringy'],es:['hilos','telarana'],de:['faeden'],fr:['cheveux']},
+      clog:{ru:['засор','экструзия'],en:['clogged','extrusion'],es:['atascada','subextrusion'],de:['verstopft','extrusion'],fr:['bouchee','extrusion']},
+      supports:{ru:['поддержки','нависания'],en:['supports','overhang'],es:['soportes','voladizos'],de:['stuetzen'],fr:['supports']},
+      shift:{ru:['смещение','сдвинуты'],en:['shifted','shifting'],es:['desplazamiento'],de:['verschoben'],fr:['decalage']}
+    };
+    const seenExact=new Set();
+    for(const variant of variants){
+      const words=[...variant.text.matchAll(/\S+/g)];
+      for(const [issue,byLanguage] of Object.entries(noteLexicon))for(const [language,phrases] of Object.entries(byLanguage))for(const phrase of phrases){
+        const phraseWords=phrase.split(' ');for(let i=0;i<=words.length-phraseWords.length;i++){
+          if(!phraseWords.every((word,index)=>words[i+index][0]===word))continue;
+          const start=words[i].index,end=words[i+phraseWords.length-1].index+words[i+phraseWords.length-1][0].length,key=`${issue}:${start}:${end}`;
+          if(seenExact.has(key))continue;seenExact.add(key);
+          const before=words.slice(Math.max(0,i-4),i).map(match=>match[0]);const after=words.slice(i+phraseWords.length,i+phraseWords.length+3).map(match=>match[0]);
+          const explicitFailurePhrase=/^(не липнет|не держится|первый слой отходит|not sticking|wont stick|no se pega|haftet nicht|ne colle pas|n adhere pas|se despega|premiere couche se decolle)$/.test(phrase);
+          const explicitAbsencePhrase=/^(без нитей|no stringing|no strings|without strings|sin hilos|kein faden|pas de fils|sans fils)$/.test(phrase);
+          const negated=explicitAbsencePhrase||!explicitFailurePhrase&&(before.some(word=>negationWords.has(word))||after.slice(0,2).some(word=>negationWords.has(word)));
+          if(!negated){if(!issueMatches.has(issue))issueMatches.set(issue,new Set());issueMatches.get(issue).add(`${variant.layout?'Раскладка клавиатуры · ':''}${language}`);supportedLanguages.add(language);}
+        }
+      }
+      for(let i=0;i<words.length;i++){
+        const token=words[i][0];if(token.length<5||!/^\p{L}+$/u.test(token))continue;
+        const priorExact=[...seenExact].some(key=>{const bits=key.split(':');return Number(bits[1])<=words[i].index&&Number(bits[2])>=words[i].index+token.length;});if(priorExact)continue;
+        for(const [issue,byLanguage] of Object.entries(fuzzyTerms))for(const [language,terms] of Object.entries(byLanguage))for(const term of terms){
+          if(token[0]!==term[0])continue;const max=token.length>=9?2:1;if(editDistance(token,term)>max)continue;
+          const before=words.slice(Math.max(0,i-4),i).map(match=>match[0]);const after=words.slice(i+1,i+4).map(match=>match[0]);
+          if(before.some(word=>negationWords.has(word))||negationWords.has(after[0]||''))continue;
+          if(!issueMatches.has(issue))issueMatches.set(issue,new Set());issueMatches.get(issue).add(`${variant.layout?'Раскладка клавиатуры · ':''}${language} · похоже на опечатку`);supportedLanguages.add(language);
+        }
+      }
+    }
+    const expanded=expandSpokenNumbers(normalized),tokens=[...expanded.matchAll(/\S+/g)];
+    const markers={
+      nozzle:{words:['сопло','сопла','соплом','nozzle','nozzles','hotend','extruder','extruder'],min:150,max:500,label:'температура сопла',unit:'°C'},
+      bed:{words:['стол','bed','платформа','platform','buildplate','printbed'],min:15,max:200,label:'температура стола',unit:'°C'},
+      speed:{words:['скорость','скоростью','speed','feedrate'],min:1,max:1000,label:'скорость печати',unit:'мм/с'}
+    };
+    const isMarker=(token,words)=>words.some(word=>token===word||word==='сопло'&&token.startsWith('сопл')||word==='стол'&&token.startsWith('стол')||word==='скорость'&&token.startsWith('скорост'));
+    const metrics={},ambiguous=[];
+    for(const [key,spec] of Object.entries(markers)){
+      const found=[];
+      for(let i=0;i<tokens.length;i++){
+        if(!isMarker(tokens[i][0],spec.words))continue;
+        let number=null;
+        for(let j=i+1;j<Math.min(tokens.length,i+7);j++){if(Object.values(markers).some(other=>isMarker(tokens[j][0],other.words)))break;const match=tokens[j][0].match(/^\d+(?:[.,]\d+)?$/);if(match){number=Number(match[0].replace(',','.'));break;}}
+        if(number===null)for(let j=i-1;j>=Math.max(0,i-4);j--){const match=tokens[j][0].match(/^\d+(?:[.,]\d+)?$/);if(match){number=Number(match[0].replace(',','.'));break;}}
+        if(number!==null)found.push(number);
+      }
+      const unique=[...new Set(found)];if(unique.length===1&&unique[0]>=spec.min&&unique[0]<=spec.max)metrics[key]={value:unique[0],label:spec.label,unit:spec.unit};else if(unique.length)ambiguous.push(unique.length>1?`${spec.label}: найдено несколько значений`:`${spec.label}: ${unique[0]} выходит за разумный диапазон`);
+    }
+    const unlabelledNumbers=tokens.some(match=>/^\d+(?:[.,]\d+)?$/.test(match[0]));if(unlabelledNumbers&&!Object.keys(metrics).length&&!ambiguous.length)ambiguous.push('Числа без подписи не поняты как температура или скорость');
+    const languageSignals={
+      ru:['сопло','стол','слой','печать','печата','нит','короб','первый','удачно','получилось','нормально','норм','неудач','проблем','плохо','без','нет'],
+      en:['nozzle','bed','layer','print','printing','filament','stringing','warping','failed','worked','success','problem','issue'],
+      es:['primera','capa','impresion','impresiones','filamento','soportes','funciono','bien','hilos'],
+      de:['erste','schicht','druck','filament','stuetzen','funktioniert','gut','faden'],
+      fr:['premiere','couche','impression','filament','supports','fonctionne','reussi','fils']
+    };
+    const languageScores={};for(const [lang,signals] of Object.entries(languageSignals))languageScores[lang]=signals.reduce((count,signal)=>count+(normalized.includes(signal)?1:0),0);
+    const matchedLanguages=[...new Set([...supportedLanguages,...Object.entries(languageScores).filter(([,score])=>score>=1).map(([lang])=>lang)])];
+    const cyrillic=/\p{Script=Cyrillic}/u.test(normalized),latin=/\p{Script=Latin}/u.test(normalized),otherScript=/[\p{Script=Arabic}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Devanagari}]/u.test(normalized);
+    const names={ru:'русский',en:'английский',es:'испанский',de:'немецкий',fr:'французский'};
+    let language=matchedLanguages.length>1?`смешанный ввод: ${matchedLanguages.map(lang=>names[lang]).join(' + ')}`:matchedLanguages.length===1?`${names[matchedLanguages[0]]} словарь`:otherScript?'другая письменность, словарь не распознал фразу':cyrillic?'кириллица, язык не определён':latin?'латиница, язык не определён':'язык не определён';
+    const normalizedOutcome=expandSpokenNumbers(normalized);
+    const failCues=['неудачно','не успешно','провал','сорвалась печать','сорвалось','не получилось','failed','failure','not successful','did not work','didnt work','bad print','fallo','no funciono','druck fehlgeschlagen','funktioniert nicht','echec','pas fonctionne'];
+    const successCues=['успешно','получилось хорошо','все хорошо','все ок','без проблем','без нитей','отлично','нормально','successful','worked','prints fine','all good','no stringing','no strings','without strings','bien','sin hilos','funciono','funktioniert','kein faden','reussi','pas de fils','sans fils','impression reussie'];
+    const cueFound=(phrases,positive)=>phrases.some(phrase=>{const cue=noteNormalize(phrase),at=normalizedOutcome.indexOf(cue);if(at<0)return false;if(!positive)return true;const before=normalizedOutcome.slice(Math.max(0,at-60),at).trim().split(' ').slice(-5);return !before.some(word=>negationWords.has(word));});
+    const hasFail=cueFound(failCues,false),hasSuccess=cueFound(successCues,true);
+    let outcome=null,outcomeConflict=hasFail&&hasSuccess;if(hasFail&&!hasSuccess)outcome='failure';else if(hasSuccess&&!hasFail)outcome='success';
+    const issues=[...issueMatches.keys()];
+    const summary=[];if(issues.length===1)summary.push(`Похоже на проблему: ${issueNames[issues[0]]}.`);else if(issues.length>1)summary.push(`В заметке встречаются разные возможные проблемы: ${issues.map(key=>issueNames[key]).join(', ')}.`);
+    if(outcome)summary.push(`Результат: ${outcome==='success'?'успешно':'неудачно'}.`);else if(outcomeConflict)summary.push('В заметке есть противоречивые оценки результата — выберите результат вручную.');
+    for(const item of Object.values(metrics))summary.push(`${item.label}: ${item.value} ${item.unit}.`);
+    if(ambiguous.length)summary.push(...ambiguous.map(message=>`${message}; не применено.`));
+    if(!issues.length&&!outcome&&!Object.keys(metrics).length&&!ambiguous.length)summary.push('Пока не распознаны проблема, итог или подписанные параметры. Добавьте слова «сопло/nozzle», «стол/bed» или «скорость/speed» рядом с числами.');
+    const canApply=issues.length===1||outcome!==null||Object.keys(metrics).length>0;
+    return {empty:false,language,issues,outcome,outcomeConflict,metrics,ambiguous,matches:Object.fromEntries([...issueMatches].map(([key,values])=>[key,[...values]])),messages:summary,canApply};
+  }
+  window.SloyMasterTextParser={parse:parsePrintNote,version:'1'};
+  let currentNoteAnalysis=null,analyzedNoteText='';
+  function analyzePrintNote(){
+    const text=$('printNote').value;currentNoteAnalysis=parsePrintNote(text);analyzedNoteText=text;
+    const panel=$('noteAssist');panel.hidden=false;$('noteAssistSummary').textContent=`Языковая подсказка: ${currentNoteAnalysis.language}. ${currentNoteAnalysis.messages.join(' ')}`;
+    const fuzzy=Object.values(currentNoteAnalysis.matches||{}).flat().some(match=>match.includes('опечатку'));
+    const extra=[];if(fuzzy)extra.push('Некоторые слова похожи на знакомые термины с опечаткой; сверьте их.');if(currentNoteAnalysis.issues.length>1)extra.push('Проблему не выбрал автоматически: отметьте подходящую вручную.');if(!currentNoteAnalysis.outcome&&!currentNoteAnalysis.outcomeConflict)extra.push('Итог печати не распознан — выберите «Успешно» или «Неудачно» вручную.');if(currentNoteAnalysis.ambiguous.length)extra.push('Неоднозначные числа не применены.');
+    $('noteAssistStatus').textContent=extra.join(' ');$('applyNoteAssist').disabled=!currentNoteAnalysis.canApply;
+  }
+  function applyPrintNoteAnalysis(){
+    const result=currentNoteAnalysis;if(!result||analyzedNoteText!==$('printNote').value)return;
+    const applied=[];
+    if(result.issues.length===1){$('printIssue').value=result.issues[0];applied.push(`проблема «${issueNames[result.issues[0]]}»`);}
+    if(result.outcome){$('printOutcome').value=result.outcome;applied.push(`результат «${result.outcome==='success'?'Успешно':'Неудачно'}»`);}
+    for(const [key,id] of Object.entries({nozzle:'actualNozzleTemp',bed:'actualBedTemp',speed:'actualSpeed'}))if(result.metrics[key]){$(id).value=String(result.metrics[key].value);applied.push(`${result.metrics[key].label} ${result.metrics[key].value} ${result.metrics[key].unit}`);}
+    $('noteAssistStatus').textContent=applied.length?`Подсказки внесены: ${applied.join('; ')}. Проверьте значения перед сохранением.`:'Из заметки нечего переносить в поля; измените данные вручную.';
+  }
+  function clearPrintNoteAnalysis(){currentNoteAnalysis=null;analyzedNoteText='';$('noteAssist').hidden=true;$('applyNoteAssist').disabled=true;$('noteAssistSummary').textContent='';$('noteAssistStatus').textContent='';}
   const issueAdvice={
     adhesion:'Проверьте чистоту и подходящую поверхность стола, первый слой и совместимость покрытия с материалом.',
     warping:'Сверьте сушку, поверхность стола, brim и требования к корпусу с техпаспортом именно этой катушки.',
@@ -800,16 +1028,55 @@
     for(const [key,label,unit,precision] of fields){const values=successful.map(item=>Number(item.actual?.[key])).filter(value=>Number.isFinite(value)&&value>0);if(values.length>=3){const value=median(values);lines.push(`Локальный ориентир ${label}: ${fmt(value,precision)} ${unit} · ${values.length} успешных примеров.`);hasLearned=true;}}
     if(successful.length<3)lines.push('Для осторожного локального ориентира нужно минимум три успешных примера; температурные диапазоны профиля не меняются автоматически.');
     else if(!hasLearned)lines.push('Успехи записаны, но для расчёта ориентира добавьте фактические температуры или скорость.');
-    const issueCounts=new Map();for(const item of failed)if(item.issue&&item.issue!=='none')issueCounts.set(item.issue,(issueCounts.get(item.issue)||0)+1);
+    const issueCounts=new Map();for(const item of records)if(item.issue&&item.issue!=='none')issueCounts.set(item.issue,(issueCounts.get(item.issue)||0)+1);
     const common=[...issueCounts].sort((a,b)=>b[1]-a[1])[0];
-    if(common){lines.push(`Чаще отмечено: ${issueNames[common[0]]||'проблема'} · ${common[1]}. ${issueAdvice[common[0]]||''}`);}
+    if(common){lines.push(`Чаще отмечали: ${issueNames[common[0]]||'проблему'} · ${common[1]}. ${issueAdvice[common[0]]||''}`);}
     $('learningSummary').textContent=lines.join('\n');
+  }
+  function updateNoteAnalysisButton(){const ready=currentNoteAnalysis&&analyzedNoteText===$('printNote').value&&currentNoteAnalysis.canApply;$('applyNoteAssist').disabled=!ready;}
+  function redactFeedback(text){
+    return String(text||'').slice(0,1600).replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,'[почта скрыта]').replace(/(?<!\d)(?:\+?\d[\s().-]?){10,15}(?!\d)/g,match=>{const digits=match.replace(/\D/g,'');return digits.length>=10&&digits.length<=15?'[телефон скрыт]':match;});
+  }
+  const feedbackCategoryNames={bug:'ошибка или сбой',language:'язык, речь или понятность текста',print:'подбор настроек печати',idea:'идея или предложение',other:'другое'};
+  let preparedFeedback=null;
+  function feedbackEndpoint(){
+    try{const url=new URL(document.querySelector('meta[name="feedback-endpoint"]')?.content||'');return url.protocol==='https:'&&url.hostname==='script.google.com'&&/^\/macros\/s\/[^/]+\/exec\/?$/.test(url.pathname)?url.href:null;}catch{return null;}
+  }
+  function updateFeedbackSubmit(){ $('sendFeedback').disabled=!(feedbackEndpoint()&&preparedFeedback&&$('feedbackConsent').checked); }
+  function prepareFeedback(){
+    const original=$('feedbackText').value.trim(),panel=$('feedbackPreview');panel.hidden=false;$('feedbackConsent').checked=false;preparedFeedback=null;
+    if(!original){$('feedbackPreviewSummary').textContent='Введите текст отзыва, чтобы показать его обработанную версию.';$('feedbackStatus').textContent='Текст пока пуст.';updateFeedbackSubmit();return;}
+    const parsed=parsePrintNote(original.slice(0,400)),safeText=redactFeedback(original),category=$('feedbackCategory').value;
+    preparedFeedback={schemaVersion:1,appVersion,category,language:parsed.language,issues:parsed.issues.map(key=>issueNames[key]||key),outcome:parsed.outcome||'',message:safeText};
+    const issueLine=preparedFeedback.issues.length?`Возможные темы: ${preparedFeedback.issues.join(', ')}.`:'Темы печати не определены автоматически.';
+    const changed=safeText!==original;
+    $('feedbackPreviewSummary').textContent=`Категория: ${feedbackCategoryNames[category]||'другое'}. Язык: ${parsed.language}. ${issueLine}\n\nТекст, который уйдёт владельцу приложения:\n${safeText}${changed?'\n\nРаспознаны и скрыты возможные контакты; проверьте очистку.':''}`;
+    $('feedbackStatus').textContent=feedbackEndpoint()?'Проверьте текст и отметьте согласие перед отправкой.':'Приём отзывов ещё не подключён; отзыв остаётся на этом компьютере.';
+    updateFeedbackSubmit();
+  }
+  async function sendFeedback(){
+    if(!preparedFeedback||!$('feedbackConsent').checked||!feedbackEndpoint())return;
+    const button=$('sendFeedback'),payload={...preparedFeedback,submittedAt:new Date().toISOString(),website:$('feedbackTrap').value};button.disabled=true;$('feedbackStatus').textContent='Передаю обработанный отзыв в службу обратной связи…';
+    try{
+      await fetch(feedbackEndpoint(),{method:'POST',mode:'no-cors',credentials:'omit',referrerPolicy:'no-referrer',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify(payload)});
+      $('feedbackStatus').textContent='Запрос передан. Почтовая служба не возвращает приложению подтверждение доставки; проверьте почту позже и не отправляйте повторно сразу.';
+      preparedFeedback=null;$('feedbackConsent').checked=false;
+    }catch{$('feedbackStatus').textContent='Не удалось передать запрос. Текст остался в форме; проверьте подключение и попробуйте позже.';}
+    updateFeedbackSubmit();
+  }
+  function initializeFeedback(){
+    const configured=!!feedbackEndpoint();$('feedbackConfigStatus').textContent=configured?'Сервис обратной связи настроен. Никакие данные не отправляются без отдельного согласия и кнопки.':'Владелец ещё не подключил почтовый приёмник. До его настройки отзыв не покидает устройство.';
+    $('prepareFeedback').addEventListener('click',prepareFeedback);$('sendFeedback').addEventListener('click',sendFeedback);
+    for(const id of ['feedbackText','feedbackCategory'])$(id).addEventListener('input',()=>{preparedFeedback=null;$('feedbackPreview').hidden=true;$('feedbackConsent').checked=false;updateFeedbackSubmit();});
+    $('feedbackCategory').addEventListener('change',()=>{preparedFeedback=null;$('feedbackPreview').hidden=true;$('feedbackConsent').checked=false;updateFeedbackSubmit();});
+    $('feedbackConsent').addEventListener('change',updateFeedbackSubmit);
   }
   function optionalNumber(id,min,max){const raw=$(id).value;if(raw==='')return null;const value=Number(raw);return Number.isFinite(value)&&value>=min&&value<=max?value:null;}
   function savePrintResult(){
     if(!mesh){$('learningStatus').textContent='Сначала загрузите и проанализируйте модель.';return;}
     const issue=$('printIssue').value, outcome=$('printOutcome').value;
-    const record={timestamp:new Date().toISOString(),file:$('fileName').textContent.slice(0,180),dims:mesh.dims.map(value=>Number(value.toFixed(2))),overhangPct:Number(mesh.overPct.toFixed(2)),contactAreaMm2:Number(mesh.contactArea.toFixed(1)),material:els.material.value,materialName:materials[els.material.value].name,nozzle:Number(els.nozzle.value),filler:els.filler.value,printer:normalizedPrinter(),outcome,issue:outcome==='failure'?issue:'none',actual:{nozzleTemp:optionalNumber('actualNozzleTemp',1,500),bedTemp:optionalNumber('actualBedTemp',1,200),speed:optionalNumber('actualSpeed',1,1000)},note:$('printNote').value.trim().slice(0,400)};
+    if(!['success','failure'].includes(outcome)){$('learningStatus').textContent='Укажите, удалась ли печать. Если результат пока неизвестен, не сохраняйте её как успешную или неудачную.';return;}
+    const record={timestamp:new Date().toISOString(),file:$('fileName').textContent.slice(0,180),dims:mesh.dims.map(value=>Number(value.toFixed(2))),overhangPct:Number(mesh.overPct.toFixed(2)),contactAreaMm2:Number(mesh.contactArea.toFixed(1)),material:els.material.value,materialName:materials[els.material.value].name,nozzle:Number(els.nozzle.value),filler:els.filler.value,printer:normalizedPrinter(),outcome,issue,actual:{nozzleTemp:optionalNumber('actualNozzleTemp',1,500),bedTemp:optionalNumber('actualBedTemp',1,200),speed:optionalNumber('actualSpeed',1,1000)},note:$('printNote').value.trim().slice(0,400)};
     const records=readPrintHistory();records.push(record);
     try{localStorage.setItem(printHistoryKey,JSON.stringify(records.slice(-200)));$('learningStatus').textContent=`Результат сохранён локально · ${new Date(record.timestamp).toLocaleString('ru-RU')}. Всего записей: ${Math.min(records.length,200)}.`;renderLearningSummary();}
     catch{$('learningStatus').textContent='Не удалось сохранить историю в локальном хранилище браузера. Освободите место или экспортируйте имеющиеся записи.';}
@@ -950,16 +1217,27 @@
     for(const face of faces){const shade=.24+face.shade*.22;ctx.beginPath();ctx.moveTo(face.pts[0].x,face.pts[0].y);ctx.lineTo(face.pts[1].x,face.pts[1].y);ctx.lineTo(face.pts[2].x,face.pts[2].y);ctx.closePath();ctx.fillStyle=showOverhang&&face.overhang?'rgba(255,116,109,.9)':`rgba(183,243,107,${shade})`;ctx.strokeStyle='rgba(225,245,229,.12)';ctx.lineWidth=.45;ctx.fill();ctx.stroke();}
     if(step>1){ctx.fillStyle='#a6b3ad';ctx.font='10px system-ui';ctx.fillText(`Показана выборка поверхности · ${faces.length.toLocaleString('ru-RU')} из ${mesh.triangles.toLocaleString('ru-RU')} граней`,10,height-10);}
   }
+  function suggestSlicerField(id,value){const field=$(id);if(field&&!field.dataset.manual)field.value=value===null||value===undefined?'':String(value);}
   function recalc() {
     savePreferences();updateCalibration();renderLearningSummary();
     if (!mesh) return;
     const mat=materials[els.material.value], nozzle=Number(els.nozzle.value), goal=els.goal.value;
-    const mult={detail:.36,balanced:.5,strength:.58,fast:.65}[goal];
+    const mult={detail:.36,balanced:.5,strength:.58,supports:.5,fast:.65}[goal]||.5;
     const layer=Math.max(.08,Math.min(nozzle*.75,Math.round(nozzle*mult*100)/100));
     const targetSpeed=mat.speed?(goal==='detail'?Math.round(mat.speed[0]*.75):goal==='fast'?mat.speed[1]:goal==='strength'?mat.speed[0]:Math.round((mat.speed[0]+mat.speed[1])/2)):null;
     const maxFlow=Number(els.maxFlow.value),flowSpeed=Number.isFinite(maxFlow)&&maxFlow>0?maxFlow/(nozzle*1.1*layer):Infinity;
     const speed=targetSpeed===null?null:Math.max(1,Math.floor(Math.min(targetSpeed,flowSpeed)));
     const walls=goal==='strength'?4:3, infill=goal==='strength'?'30%':goal==='fast'?'12–15%':goal==='detail'?'10–15%':'15–20%';
+    const bedX=Number($('bedX').value)||220,bedY=Number($('bedY').value)||220,bedZ=Number($('bedZ').value)||250;
+    bestOrientation=chooseOrientation(mesh,goal,bedX,bedY,bedZ);
+    const infillPercent=goal==='strength'?30:goal==='fast'?12:goal==='detail'?12:18;
+    const infillPattern=goal==='strength'?'gyroid':goal==='fast'?'grid':'gyroid';
+    const defaultSupport=mesh.over[bestOrientation.axis]/Math.max(mesh.area,1)>0.075?(goal==='supports'?'tree':'normal'):'none';
+    const defaultBrim=mesh.axisContact[bestOrientation.axis]<25||bestOrientation.contactArea/Math.max(mesh.dims[0]*mesh.dims[1],1)<.02?5:0;
+    const nozzleTemp=mat.nozzle?Math.round((mat.nozzle[0]+mat.nozzle[1])/2):null,bedTemp=mat.bed?Math.round((mat.bed[0]+mat.bed[1])/2):null;
+    suggestSlicerField('slicerLayerHeight',layer);suggestSlicerField('slicerFirstLayerHeight',Math.min(layer+.04,nozzle*.65));suggestSlicerField('slicerWalls',walls);suggestSlicerField('slicerInfill',infillPercent);suggestSlicerField('slicerSpeed',speed);suggestSlicerField('slicerNozzleTemp',nozzleTemp);suggestSlicerField('slicerBedTemp',bedTemp);suggestSlicerField('slicerBrim',defaultBrim);
+    if(!$('slicerPattern').dataset.manual)$('slicerPattern').value=infillPattern;
+    if(!$('slicerSupport').dataset.manual)$('slicerSupport').value=defaultSupport;
     $('profileTag').textContent=`${mat.name} · ${fmt(nozzle,1)} мм`;
     $('settings').replaceChildren();
     addSetting('L','Высота слоя',`${fmt(layer,2)} мм`,`Ориентир для этого сопла: ${fmt(nozzle*.25,2)}–${fmt(nozzle*.75,2)} мм; проверьте профиль слайсера.`);
@@ -985,9 +1263,8 @@
     const footprint=Math.max(.001,mesh.dims[0]*mesh.dims[1]),contactRatio=Math.min(100,mesh.contactArea/footprint*100);
     $('contactLabel').textContent=`${fmt(mesh.contactArea/100,1)} см² · ${fmt(contactRatio,1)}% основания`;
     $('contactBar').style.width=`${contactRatio}%`;
-    const [axis,sign]=mesh.axes[mesh.bestIndex], axisName=['X','Y','Z'][axis], direction=sign>0?'+':'−';
-    const orientation=mesh.over[4] <= Math.min(...mesh.over)+mesh.area*.001?'Текущая ориентация выглядит одной из наиболее спокойных по нависаниям среди проверенных осевых поворотов.':`Меньше нависаний по оценке будет, если повернуть модель так, чтобы направление ${direction}${axisName} стало вертикалью вверх.`;
-    $('orientationHint').innerHTML=`<b>Ориентация:</b> ${orientation} В оценке сравниваются только повороты вдоль осей STL при пороге 45°; проверьте площадь контакта с платформой в слайсере. В этой ориентации нависающие грани: около ${fmt(mesh.bestPct,1)}%.`;
+    const [axis,sign]=mesh.axes[bestOrientation.axis],axisName=['X','Y','Z'][axis],direction=sign>0?'+':'−',goalName={balanced:'баланс скорости, опор и контакта',detail:'качество и меньше поддержек',strength:'ориентировочная прочность',supports:'минимум поддержек',fast:'сокращение высоты печати'}[goal]||'баланс';
+    $('orientationHint').textContent=`Ориентация для цели «${goalName}»: направление ${direction}${axisName} вверх${bestOrientation.twist?`, поворот стола ${bestOrientation.twist}°`:''}. Оценка нависаний: примерно ${fmt(bestOrientation.supportPct,1)}% поверхности; основание: ${fmt(bestOrientation.contactArea/100,1)} см²; высота: ${fmt(bestOrientation.bounds.dims[2],1)} мм.${bestOrientation.fit?' Вписывается в область стола по габаритам.':' По оценке габариты не помещаются в указанную область стола.'} Расчёт сравнивает 6 осевых положений и поворот вокруг Z; он не заменяет предпросмотр слайсера.`;
     const warnings=[];
     warnings.push(['info',`Толщину стенок и минимальные элементы модель напрямую не проверяет. Сверьте участки уже примерно ${fmt(nozzle*1.1,2)} мм (расчётная ширина линии) с предпросмотром слайсера.`]);
     if(mat.highTemp)warnings.push(['danger','PEI / PEEK / PEKK / PPSU: универсальные настройки не выдаются. Нужны принтер, хотэнд и камера, прямо рассчитанные на выбранный полимер, и точный профиль/TDS.']);
@@ -1008,6 +1285,7 @@
     const bx=Number($('bedX').value)||220, by=Number($('bedY').value)||220, bz=Number($('bedZ').value)||250;
     const sorted=[...mesh.dims].sort((a,b)=>a-b), fit=sorted[0]<=Math.min(bx,by)&&sorted[1]<=Math.max(bx,by)&&sorted[2]<=bz;
     if(!fit) warnings.push(['danger',`Габариты модели (${dims.join(' × ')} мм) могут не поместиться в заданную область ${bx} × ${by} × ${bz} мм. Проверьте масштаб и поворот в слайсере.`]);
+    if(goal==='strength')warnings.push(['info','Прочность по ориентации оценивается приблизительно: приложение не знает направление нагрузки. Для функциональной детали соотнесите направление силы со слоями и проверьте число стенок/заполнение в предпросмотре.']);
     if(mesh.contactArea<25||contactRatio<2) warnings.push(['warn',`Плоская площадь контакта с платформой небольшая (${fmt(mesh.contactArea/100,1)} см²). Проверьте первый слой и ракурс; для высокой детали может помочь кайма (brim) в слайсере.`]);
     else if(contactRatio<8) warnings.push(['info',`Основание занимает около ${fmt(contactRatio,1)}% проекции модели. Если деталь высокая или углы поднимаются, включите кайму (brim).`]);
     if(mesh.overPct>20) warnings.push(['warn',`Заметные нависания (${fmt(mesh.overPct,1)}%). Включите поддержки и проверьте их предварительный просмотр; попробуйте органические поддержки или поворот модели.`]);
@@ -1032,10 +1310,43 @@
       `Материал: ${mat.name}; сопло: ${fmt(nozzle,1)} мм; цель: ${$('goal').selectedOptions[0].textContent}`,
       `Высота слоя: ${fmt(layer,2)} мм; стартовый диапазон сопла: ${tempText(mat.nozzle)}; стола: ${tempText(mat.bed)}; скорость: ${speed===null?'только профиль/TDS':`около ${speed} мм/с`}; обдув: ${mat.fan}`,
       `Стенки: ${walls}; заполнение: ${infill}; первый слой: ${fmt(bedFirst,2)} мм`,
-      `Нависания в текущей ориентации: ${fmt(mesh.overPct,1)}%; минимум среди осевых поворотов: ${fmt(mesh.bestPct,1)}%`,
+      `Рекомендуемая ориентация: ${direction}${axisName} вверх${bestOrientation.twist?`, поворот ${bestOrientation.twist}°`:''}; площадь нависаний по оценке ${fmt(bestOrientation.supportPct,1)}%; основание ${fmt(bestOrientation.contactArea/100,1)} см²; высота ${fmt(bestOrientation.bounds.dims[2],1)} мм`,
       ...warnings.map(w=>'Внимание: '+w[1]),
       '', 'Параметры стартовые. Проверьте профиль принтера и филамента, а также предпросмотр и поддержки в слайсере.'
     ].join('\n');
+    savePreferences();updateSlicerActionState();
+  }
+  function createPreparedStl(){
+    if(!mesh||!bestOrientation)throw new Error('Сначала выберите и проанализируйте модель.');
+    const triangleCount=mesh.triangles,size=84+triangleCount*50;if(size>200*1024*1024)throw new Error('Модель слишком велика для передачи слайсеру через локальный помощник. Уменьшите число полигонов.');
+    const buffer=new ArrayBuffer(size),view=new DataView(buffer),bytes=new Uint8Array(buffer),header=new TextEncoder().encode('SloyMaster 3D prepared orientation; units: millimeters');bytes.set(header.slice(0,80),0);view.setUint32(80,triangleCount,true);
+    const m=bestOrientation.matrix,bounds=bestOrientation.bounds,midX=(bounds.min[0]+bounds.max[0])/2,midY=(bounds.min[1]+bounds.max[1])/2,a=mesh.xyz;let offset=84;
+    const rotate=(x,y,z)=>[m[0]*x+m[1]*y+m[2]*z-midX,m[3]*x+m[4]*y+m[5]*z-midY,m[6]*x+m[7]*y+m[8]*z-bounds.min[2]];
+    for(let i=0;i<triangleCount;i++){
+      const j=i*9,p0=rotate(a[j],a[j+1],a[j+2]),p1=rotate(a[j+3],a[j+4],a[j+5]),p2=rotate(a[j+6],a[j+7],a[j+8]),u=p1.map((value,index)=>value-p0[index]),v=p2.map((value,index)=>value-p0[index]),normal=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]],length=Math.hypot(...normal)||1;
+      for(const value of normal)view.setFloat32(offset,value/length,true),offset+=4;
+      for(const point of [p0,p1,p2])for(const value of point)view.setFloat32(offset,value,true),offset+=4;
+      view.setUint16(offset,0,true);offset+=2;
+    }
+    return buffer;
+  }
+  function settingsHeader(value){const data=new TextEncoder().encode(JSON.stringify(value));let binary='';for(let offset=0;offset<data.length;offset+=0x8000)binary+=String.fromCharCode(...data.subarray(offset,offset+0x8000));return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+  async function prepareSlicerProject(){
+    const button=$('prepareSlicerProject'),targetIndex=Number($('slicerTarget').value),slicer=windowsMetadata?.slicers?.[targetIndex];
+    if(button.disabled||!slicer||!selectedMachineProfile||!mesh)return;
+    const number=id=>{const raw=$(id).value;if(raw==='')return null;const value=Number(raw);return Number.isFinite(value)?value:null;};
+    const settings={layerHeight:number('slicerLayerHeight'),firstLayerHeight:number('slicerFirstLayerHeight'),walls:number('slicerWalls'),infill:number('slicerInfill'),pattern:$('slicerPattern').value,support:$('slicerSupport').value,nozzleTemp:number('slicerNozzleTemp'),bedTemp:number('slicerBedTemp'),speed:number('slicerSpeed'),brim:number('slicerBrim'),material:els.material.value};
+    if((settings.nozzleTemp===null||settings.bedTemp===null)&&['highTemp','other'].includes(settings.material)){$('slicerStatus').textContent='Для этого материала укажите температуры сопла и стола по TDS катушки, затем повторите подготовку.';return;}
+    const maxNozzle=Number(els.maxNozzleTemp.value),maxBed=Number(els.maxBedTemp.value);
+    if((Number.isFinite(maxNozzle)&&maxNozzle>0&&settings.nozzleTemp!==null&&settings.nozzleTemp>maxNozzle)||(Number.isFinite(maxBed)&&maxBed>0&&settings.bedTemp!==null&&settings.bedTemp>maxBed)){$('slicerStatus').textContent='Предложенная температура превышает предел выбранного профиля принтера. Проверьте катушку и аппаратный профиль, затем скорректируйте расширенные значения.';return;}
+    button.disabled=true;$('slicerStatus').textContent='Поворачиваю модель и передаю её локальному помощнику Windows…';
+    try{
+      const model=createPreparedStl(),token=new URLSearchParams(location.search).get('token')||'',response=await fetch('/api/open-slicer',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-SloyMaster-Token':token,'X-SM-Slicer-Index':String(targetIndex),'X-SM-Profile-Index':String(selectedMachineProfileIndex),'X-SM-Settings':settingsHeader(settings)},body:model});
+      let result={};try{result=await response.json();}catch{}
+      if(!response.ok||!result.ok)throw new Error(result.message||`Локальный помощник вернул HTTP ${response.status}.`);
+      $('slicerStatus').textContent=`Проект подготовлен и открыт в ${slicer.name}. В слайсере проверьте применённые настройки, размещение модели, поддержку и предпросмотр перед экспортом G-code.`;
+    }catch(error){$('slicerStatus').textContent=`Не удалось подготовить проект: ${error.message||'ошибка локального помощника'}`;}
+    finally{updateSlicerActionState();}
   }
   async function loadFile(file,companionFiles=[file]) {
     if(!file) return;
@@ -1047,11 +1358,12 @@
       if(!parsed.triangles) throw new Error('В модели не найдены треугольники.');
       mesh=analyze(parsed); $('empty').style.display='none'; $('results').style.display='block'; els.status.textContent=`Готово · ${parsed.format}`;
       renderPreview();
-      recalc();
-    } catch(err) { mesh=null; $('results').style.display='none'; $('empty').style.display='block'; els.status.textContent=err.message||'Не удалось прочитать файл.'; }
+      recalc();updateSlicerActionState();
+    } catch(err) { mesh=null; $('results').style.display='none'; $('empty').style.display='block'; els.status.textContent=err.message||'Не удалось прочитать файл.';updateSlicerActionState(); }
   }
   els.file.addEventListener('change',e=>{const files=[...e.target.files],supported=files.find(item=>/\.(stl|3mf|obj|ply|amf|off|gltf|glb)$/i.test(item.name));loadFile(supported||files[0],files);});
   for(const id of ['material','nozzle','goal','enclosure','filler','nozzleType','maxNozzleTemp','maxBedTemp','maxFlow','bedX','bedY','bedZ','printerLabel']) $(id).addEventListener('change',recalc);
+  for(const id of ['slicerLayerHeight','slicerFirstLayerHeight','slicerWalls','slicerInfill','slicerPattern','slicerSupport','slicerNozzleTemp','slicerBedTemp','slicerSpeed','slicerBrim'])for(const eventName of ['input','change'])$(id).addEventListener(eventName,()=>{$(id).dataset.manual='1';savePreferences();updateSlicerActionState();});
   $('toggleOverhang').addEventListener('click',()=>{showOverhang=!showOverhang;$('toggleOverhang').textContent=showOverhang?'Скрыть подсветку':'Показать подсветку';renderPreview();});
   $('resetPreview').addEventListener('click',()=>{previewYaw=.62;previewPitch=-.48;previewZoom=1;renderPreview();});
   const preview=$('modelPreview');
@@ -1066,7 +1378,12 @@
   $('closeHelp').addEventListener('click',()=>$('helpDialog').close());
   $('helpDialog').addEventListener('click',event=>{if(event.target===$('helpDialog'))$('helpDialog').close();});
   $('savePrintResult').addEventListener('click',savePrintResult);
+  $('prepareSlicerProject').addEventListener('click',prepareSlicerProject);
   $('exportPrintHistory').addEventListener('click',exportPrintHistory);
+  $('analyzePrintNote').addEventListener('click',analyzePrintNote);
+  $('applyNoteAssist').addEventListener('click',applyPrintNoteAnalysis);
+  $('clearNoteAssist').addEventListener('click',clearPrintNoteAnalysis);
+  $('printNote').addEventListener('input',()=>{if(currentNoteAnalysis){$('noteAssistSummary').textContent='Заметка изменилась. Разберите её снова перед применением.';$('noteAssistStatus').textContent='';updateNoteAnalysisButton();}});
   els.drop.addEventListener('dragover',e=>{e.preventDefault();els.drop.classList.add('drag');});
   els.drop.addEventListener('dragleave',()=>els.drop.classList.remove('drag'));
   els.drop.addEventListener('drop',e=>{e.preventDefault();els.drop.classList.remove('drag');const files=[...e.dataTransfer.files],supported=files.find(item=>/\.(stl|3mf|obj|ply|amf|off|gltf|glb)$/i.test(item.name));loadFile(supported||files[0],files);});
@@ -1075,6 +1392,7 @@
   updateCalibration();
   renderLearningSummary();
   initializeUpdates();
+  initializeFeedback();
   initializeLicense();
   readWindowsMetadata();
 })();
