@@ -327,6 +327,151 @@ function Get-WindowsPrinters {
     return @($items | Sort-Object name -Unique)
 }
 
+function Test-PrivateLanAddress {
+    param([System.Net.IPAddress]$Address)
+    if ($null -eq $Address -or $Address.AddressFamily -ne [System.Net.Sockets.AddressFamily]::InterNetwork) { return $false }
+    $bytes = $Address.GetAddressBytes()
+    return ($bytes[0] -eq 10) -or
+        ($bytes[0] -eq 172 -and $bytes[1] -ge 16 -and $bytes[1] -le 31) -or
+        ($bytes[0] -eq 192 -and $bytes[1] -eq 168) -or
+        ($bytes[0] -eq 169 -and $bytes[1] -eq 254)
+}
+
+function Add-WifiPrinterCandidate {
+    param(
+        [System.Collections.Generic.List[object]]$Items,
+        [string]$Name,
+        [System.Net.IPAddress]$Address,
+        [string]$Method,
+        [string]$Model = '',
+        [string]$Vendor = '',
+        [int]$Port = 0
+    )
+    if (-not (Test-PrivateLanAddress -Address $Address)) { return }
+    $ip = $Address.ToString()
+    $existing = $Items | Where-Object { $_.ipAddress -eq $ip } | Select-Object -First 1
+    if ($existing) {
+        $methods = @([string]$existing.method -split ';\s*')
+        if ($methods -notcontains $Method) { $existing.method = (@($methods) + @($Method) | Sort-Object -Unique) -join '; ' }
+        if (-not $existing.model -and $Model) { $existing.model = $Model }
+        if (-not $existing.vendor -and $Vendor) { $existing.vendor = $Vendor }
+        if (($existing.name -like '3D-принтер *' -or $existing.name -like '*mDNS*') -and $Name) { $existing.name = $Name.Substring(0, [Math]::Min(120, $Name.Length)) }
+        if (-not $existing.port -and $Port) { $existing.port = $Port }
+        return
+    }
+    if (-not $Name) { $Name = if ($Model) { $Model } else { "3D-принтер $ip" } }
+    $Items.Add([pscustomobject]@{
+        name = $Name.Substring(0, [Math]::Min(120, $Name.Length))
+        ipAddress = $ip
+        model = $Model
+        vendor = $Vendor
+        method = $Method
+        port = $Port
+        confidence = 'network-advertisement'
+        source = 'Обнаружен в локальной сети; готовность к печати не проверялась'
+    })
+}
+
+function Get-SsdpPrinterCandidates {
+    param([System.Collections.Generic.List[object]]$Items)
+    $searches = @(
+        @{ Address = '239.255.255.250'; Port = 1900; Method = 'SSDP / UPnP'; Service = 'ssdp:all' },
+        @{ Address = '239.255.255.250'; Port = 2021; Method = 'Bambu SSDP'; Service = 'ssdp:all' }
+    )
+    foreach ($search in $searches) {
+        $client = $null
+        try {
+            $client = New-Object System.Net.Sockets.UdpClient([System.Net.Sockets.AddressFamily]::InterNetwork)
+            $client.Client.ReceiveTimeout = 120
+            $client.Ttl = 1
+            $client.EnableBroadcast = $true
+            $hostHeader = "$($search.Address):$($search.Port)"
+            $message = "M-SEARCH * HTTP/1.1`r`nHOST: $hostHeader`r`nMAN: `"ssdp:discover`"`r`nMX: 1`r`nST: $($search.Service)`r`nUSER-AGENT: Windows/10 SloyMaster3D/1.2.0`r`n`r`n"
+            $bytes = [Text.Encoding]::ASCII.GetBytes($message)
+            $target = New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Parse($search.Address), [int]$search.Port)
+            [void]$client.Send($bytes, $bytes.Length, $target)
+            $until = [DateTime]::UtcNow.AddMilliseconds(650)
+            while ([DateTime]::UtcNow -lt $until) {
+                $remote = New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Any, 0)
+                try { $responseBytes = $client.Receive([ref]$remote) }
+                catch [System.Net.Sockets.SocketException] { continue }
+                if (-not (Test-PrivateLanAddress -Address $remote.Address)) { continue }
+                $response = [Text.Encoding]::UTF8.GetString($responseBytes)
+                $headers = @{}
+                foreach ($line in ($response -split "`r?`n")) {
+                    $separator = $line.IndexOf(':')
+                    if ($separator -gt 0) { $headers[$line.Substring(0, $separator).Trim().ToLowerInvariant()] = $line.Substring($separator + 1).Trim() }
+                }
+                $identity = @($response, $headers['st'], $headers['usn'], $headers['server'], $headers['devmodel.bambu.com'], $headers['devname.bambu.com']) -join ' '
+                if ($identity -notmatch '(?i)(bambulab-com|bambu|octoprint|octo.?print|3d.?printer|moonraker|klipper|creality|prusa|elegoo|anycubic|flashforge|qidi|raise3d)') { continue }
+                $model = [string]$headers['devmodel.bambu.com']
+                $name = [string]$headers['devname.bambu.com']
+                $vendor = ''
+                if ($identity -match '(?i)bambu') { $vendor = 'Bambu Lab' }
+                elseif ($identity -match '(?i)octoprint|klipper|moonraker') { $vendor = 'OctoPrint / Klipper' }
+                elseif ($identity -match '(?i)creality') { $vendor = 'Creality' }
+                elseif ($identity -match '(?i)prusa') { $vendor = 'Prusa' }
+                if (-not $model -and $headers['st']) { $model = [string]$headers['st'] }
+                if (-not $name) { $name = $model }
+                Add-WifiPrinterCandidate -Items $Items -Name $name -Address $remote.Address -Method $search.Method -Model $model -Vendor $vendor -Port $search.Port
+            }
+        } catch { }
+        finally { if ($null -ne $client) { $client.Dispose() } }
+    }
+}
+
+function New-DnsSdQuestion {
+    param([string]$Name)
+    $packet = New-Object 'System.Collections.Generic.List[byte]'
+    $packet.AddRange([byte[]]@(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0))
+    foreach ($label in ($Name.TrimEnd('.') -split '\.')) {
+        $labelBytes = [Text.Encoding]::ASCII.GetBytes($label)
+        $packet.Add([byte]$labelBytes.Length)
+        foreach ($value in $labelBytes) { $packet.Add($value) }
+    }
+    $packet.Add(0)
+    $packet.Add(0); $packet.Add(12) # PTR record
+    $packet.Add(128); $packet.Add(1) # IN class, unicast-response bit
+    return ,$packet.ToArray()
+}
+
+function Get-MdnsPrinterCandidates {
+    param([System.Collections.Generic.List[object]]$Items)
+    foreach ($service in @('_octoprint._tcp.local', '_moonraker._tcp.local', '_http._tcp.local')) {
+        $client = $null
+        try {
+            $client = New-Object System.Net.Sockets.UdpClient([System.Net.Sockets.AddressFamily]::InterNetwork)
+            $client.Client.ReceiveTimeout = 120
+            $target = New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Parse('224.0.0.251'), 5353)
+            $question = New-DnsSdQuestion -Name $service
+            [void]$client.Send($question, $question.Length, $target)
+            $until = [DateTime]::UtcNow.AddMilliseconds(450)
+            while ([DateTime]::UtcNow -lt $until) {
+                $remote = New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Any, 0)
+                try { $responseBytes = $client.Receive([ref]$remote) }
+                catch [System.Net.Sockets.SocketException] { continue }
+                if (-not (Test-PrivateLanAddress -Address $remote.Address)) { continue }
+                $printable = [regex]::Replace([Text.Encoding]::ASCII.GetString($responseBytes), '[^\x20-\x7E]', '')
+                $identity = "$service $printable"
+                if ($service -eq '_http._tcp.local' -and $identity -notmatch '(?i)(octoprint|moonraker|klipper|mainsail|fluidd|3d.?printer|ender|bambu|creality|prusa|elegoo|anycubic|flashforge|qidi)') { continue }
+                $vendor = if ($identity -match '(?i)bambu') { 'Bambu Lab' } elseif ($identity -match '(?i)octoprint') { 'OctoPrint' } elseif ($identity -match '(?i)(moonraker|klipper|mainsail|fluidd)') { 'Klipper' } else { '' }
+                $name = if ($service -match 'octoprint') { 'OctoPrint' } elseif ($service -match 'moonraker') { 'Moonraker / Klipper' } elseif ($vendor) { $vendor } else { '3D-принтер (mDNS)' }
+                Add-WifiPrinterCandidate -Items $Items -Name $name -Address $remote.Address -Method "mDNS $service" -Vendor $vendor -Port 0
+            }
+        } catch { }
+        finally { if ($null -ne $client) { $client.Dispose() } }
+    }
+}
+
+function Get-WifiPrinterCandidates {
+    $items = New-Object System.Collections.Generic.List[object]
+    # Only query local multicast discovery protocols. No subnet sweep, credentials,
+    # printer API calls, uploads, or print commands are sent by this detector.
+    Get-SsdpPrinterCandidates -Items $items
+    Get-MdnsPrinterCandidates -Items $items
+    return @($items | Sort-Object ipAddress, name, method -Unique | Select-Object -First 30)
+}
+
 function Get-SerialCandidates {
     $items = New-Object System.Collections.Generic.List[object]
     try {
@@ -354,6 +499,7 @@ if (-not (Test-Path -LiteralPath $htmlPath -PathType Leaf)) {
 $payload = [ordered]@{
     printers = @(Get-WindowsPrinters)
     serialPorts = @(Get-SerialCandidates)
+    wifiPrinters = @(Get-WifiPrinterCandidates)
     slicers = @(Get-InstalledSlicers)
     profiles = @(Get-SlicerProfiles)
 }

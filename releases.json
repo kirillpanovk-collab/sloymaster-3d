@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
-  "url": "https://github.com/kirillpanovk-collab/sloymaster-3d/releases/download/v1.1.0/SloyMaster3D-1.1.0-portable.zip",
-  "notes": "Автоматический подбор кандидата-профиля, локальная подготовка 3MF-проекта для OrcaSlicer, Bambu Studio и PrusaSlicer, автоориентация и сохранение параметров."
+  "version": "1.2.0",
+  "url": "https://github.com/kirillpanovk-collab/sloymaster-3d/releases/download/v1.2.0/SloyMaster3D-1.2.0-portable.zip",
+  "notes": "Обнаружение принтеров в локальной сети по SSDP/UPnP и mDNS; IP-диапазоны не сканируются. Добавлен список найденных Wi-Fi/Ethernet кандидатов."
 }

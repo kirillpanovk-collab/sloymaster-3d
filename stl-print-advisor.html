@@ -5,8 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0e14">
   <meta name="application-name" content="СлойМастер 3D">
-  <meta name="application-version" content="1.1.0">
-  <meta name="update-feed-url" content="https://raw.githubusercontent.com/kirillpanovk-collab/sloymaster-3d/main/releases.json">
+  <meta name="application-version" content="1.2.0">
   <meta name="update-feed-url" content="https://raw.githubusercontent.com/kirillpanovk-collab/sloymaster-3d/main/releases.json">
   <meta name="feedback-endpoint" content="">
   <link rel="icon" type="image/svg+xml" href="sloymaster-icon.svg">
@@ -240,6 +239,7 @@
           <div class="windows-grid">
             <div class="detected-block"><div class="detected-title">Очереди принтеров</div><div class="detected-list" id="windowsPrinters"></div></div>
             <div class="detected-block"><div class="detected-title">Кандидаты COM-портов</div><div class="detected-list" id="serialPorts"></div></div>
+            <div class="detected-block"><div class="detected-title">Принтеры в Wi-Fi / локальной сети</div><div class="detected-list" id="wifiPrinters"></div></div>
             <div class="detected-block"><div class="detected-title">Найденные слайсеры</div><div class="detected-list" id="slicers"></div></div>
             <div class="detected-block">
               <div class="detected-title">Профили принтера</div>
@@ -249,7 +249,7 @@
           </div>
           <div class="field full slicer-actions"><select id="slicerTarget" disabled aria-label="Слайсер для подготовки проекта"><option value="">Совместимый слайсер не найден</option></select><button id="prepareSlicerProject" type="button" disabled>Подготовить проект</button></div>
           <p class="slicer-status" id="slicerStatus" aria-live="polite">Для передачи модели запустите приложение через ярлык Windows.</p>
-          <p class="windows-foot">Поиск читает очередь Windows, USB/COM-кандидаты и профили слайсеров. Они не доказывают, что принтер подключён или включён. Автоматическая передача проекта поддерживается для обнаруженных профилей OrcaSlicer, Bambu Studio и PrusaSlicer; для остальных слайсеров можно сохранить рекомендации отдельно.</p>
+          <p class="windows-foot">При запуске приложение ищет локальные объявления SSDP/UPnP и mDNS/Bonjour (в том числе Bambu Lab и OctoPrint/Klipper) в текущей сети Wi-Fi или Ethernet; широкого сканирования сети, входа в принтер и отправки заданий нет. Обнаружение зависит от модели, настроек сети и межсетевого экрана. Очередь Windows, USB/COM-порт или сетевое объявление сами по себе не подтверждают готовность к печати. Автоподготовка проекта поддерживается для сохранённых односопловых профилей OrcaSlicer, Bambu Studio и PrusaSlicer.</p>
         </section>
         <section class="card">
           <h2>Параметры печати</h2>
@@ -394,21 +394,21 @@
     <footer class="app-footer"><span>СлойМастер 3D · © 2026 Панов Кирилл Александрович</span><span>Диапазоны ориентировочные · финальную проверку выполните в слайсере</span></footer>
   </main>
   <dialog id="licenseDialog" aria-labelledby="licenseTitle">
-    <div class="dialog-head"><div><div class="eyebrow">СОГЛАШЕНИЕ ПОЛЬЗОВАТЕЛЯ · 1.1.0</div><h2 id="licenseTitle">Лицензия СлойМастер 3D</h2><span class="unit">Правообладатель: Панов Кирилл Александрович</span></div></div>
+    <div class="dialog-head"><div><div class="eyebrow">СОГЛАШЕНИЕ ПОЛЬЗОВАТЕЛЯ · 1.2.0</div><h2 id="licenseTitle">Лицензия СлойМастер 3D</h2><span class="unit">Правообладатель: Панов Кирилл Александрович</span></div></div>
     <div class="dialog-body">
       <div class="license-box" tabindex="0">
-        <p><b>Лицензионное соглашение конечного пользователя</b><br>Версия 1.1.0 · дата: 6 октября 2026 года<br>Правообладатель: Панов Кирилл Александрович («Правообладатель»). Применимое право: Российская Федерация.</p>
+        <p><b>Лицензионное соглашение конечного пользователя</b><br>Версия 1.2.0 · дата: 6 октября 2026 года<br>Правообладатель: Панов Кирилл Александрович («Правообладатель»). Применимое право: Российская Федерация.</p>
         <h3>1. Принятие условий</h3><p>Нажимая «Принять и продолжить», вы заключаете настоящее соглашение с Правообладателем. Если вы не согласны, не запускайте и удалите приложение.</p>
         <h3>2. Предоставляемые права</h3><p>Пока вы соблюдаете соглашение, Правообладатель предоставляет вам неисключительное, безвозмездное, непередаваемое право устанавливать и использовать приложение для личных и ознакомительных целей. Вы можете бесплатно передавать другим лицам исходный неизменённый пакет целиком вместе с этим соглашением и уведомлением об авторских правах, либо делиться официальной ссылкой на релиз.</p>
         <h3>3. Ограничения</h3><p>Без отдельного письменного разрешения нельзя продавать или сдавать приложение в аренду, включать его в платный продукт, публиковать изменённые сборки, выдавать приложение или его части за свою разработку, удалять уведомления об авторских правах либо предоставлять сублицензию. Ограничения не затрагивают права, которые нельзя исключить по применимому закону.</p>
         <h3>4. Интеллектуальные права</h3><p>Исключительные права на приложение, его исходный код, интерфейс и фирменные материалы принадлежат Правообладателю, если явно не указано иное. Это соглашение не передаёт право собственности. Ваши модели, профили и записи печати остаются вашими.</p>
-        <h3>5. Данные и обновления</h3><p>Приложение хранит настройки и историю печати локально. Для передачи подготовленного проекта оно запускает защищённый случайным токеном локальный помощник, доступный только через 127.0.0.1. Только после нажатия «Подготовить проект» повернутая модель и настройки передаются установленному слайсеру; промежуточные файлы сохраняются в папке приложения в локальном профиле Windows и могут быть удалены пользователем. В интернет модель, история и телеметрия не передаются. Проверка публичной ленты обновлений, если она настроена, отправляет только HTTPS-запрос к её адресу. Отправка отзыва — отдельная добровольная функция: только после просмотра текста, согласия и нажатия кнопки владелец получает очищенный текст отзыва, выбранную категорию, языковые метки и версию приложения. Удаление контактов распознаётся автоматически не всегда; перед отправкой проверьте текст. Файлы, модель и журнал печати к отзыву не прикладываются.</p>
+        <h3>5. Данные и обновления</h3><p>Приложение хранит настройки и историю печати локально. При запуске помощник отправляет в текущую локальную сеть запросы обнаружения SSDP/mDNS и показывает IP-адреса устройств, ответивших как принтеры или сервисы печати; результаты остаются на компьютере. Запросы не включают пароль, файл модели или команду печати. Для передачи подготовленного проекта оно запускает защищённый случайным токеном локальный помощник, доступный только через 127.0.0.1. Только после нажатия «Подготовить проект» повернутая модель и настройки передаются установленному слайсеру; промежуточные файлы сохраняются в папке приложения в локальном профиле Windows и могут быть удалены пользователем. В интернет модель, история и телеметрия не передаются. Проверка публичной ленты обновлений, если она настроена, отправляет только HTTPS-запрос к её адресу. Отправка отзыва — отдельная добровольная функция: только после просмотра текста, согласия и нажатия кнопки владелец получает очищенный текст отзыва, выбранную категорию, языковые метки и версию приложения. Удаление контактов распознаётся автоматически не всегда; перед отправкой проверьте текст. Файлы, модель и журнал печати к отзыву не прикладываются.</p>
         <h3>6. Отказ от гарантий и ответственность</h3><p>Приложение предоставляется «как есть». Рекомендации ориентировочные и не заменяют техпаспорт филамента, профиль слайсера и проверку оборудования. Перед печатью оцените безопасность материала и принтера. В пределах, разрешённых законом, Правообладатель не гарантирует безошибочную работу и не отвечает за косвенные убытки. Ничто в соглашении не ограничивает ответственность, которую нельзя ограничить по закону.</p>
         <h3>7. Срок и прекращение</h3><p>Лицензия действует до прекращения вами использования или нарушения условий. При существенном нарушении предоставленные права прекращаются; удалите имеющиеся копии, кроме случаев, когда обязательный закон предусматривает иное.</p>
         <h3>8. Применимое право</h3><p>Соглашение регулируется правом Российской Федерации. Права потребителя и иные обязательные гарантии, которые закон предоставляет пользователю, сохраняются.</p>
         <p>Полный текст включён в файл <b>LICENSE_RU.txt</b> в комплекте приложения. Это пользовательское соглашение не является юридическим заключением.</p>
       </div>
-      <label class="license-accept"><input id="licenseAcceptCheck" type="checkbox"><span>Я прочитал(а) и принимаю лицензионное соглашение версии 1.1.0.</span></label>
+      <label class="license-accept"><input id="licenseAcceptCheck" type="checkbox"><span>Я прочитал(а) и принимаю лицензионное соглашение версии 1.2.0.</span></label>
       <div class="license-actions"><button id="declineLicense" class="about-button" type="button">Не принимаю</button><button id="acceptLicense" type="button" disabled>Принять и продолжить</button></div>
       <div class="license-status" id="licenseStatus" aria-live="polite"></div>
     </div>
@@ -427,11 +427,11 @@
     </div>
   </dialog>
   <dialog id="updateDialog" aria-labelledby="updateTitle">
-    <div class="dialog-head"><div><div class="eyebrow">СЛОЙМАСТЕР 3D</div><h2 id="updateTitle">Обновления приложения</h2><span class="unit">Текущая версия 1.1.0</span></div><button id="closeUpdates" type="button" aria-label="Закрыть окно">Закрыть</button></div>
+    <div class="dialog-head"><div><div class="eyebrow">СЛОЙМАСТЕР 3D</div><h2 id="updateTitle">Обновления приложения</h2><span class="unit">Текущая версия 1.2.0</span></div><button id="closeUpdates" type="button" aria-label="Закрыть окно">Закрыть</button></div>
     <div class="dialog-body">
       <div class="dialog-form">
         <div class="field"><label for="updateFeedUrl">Публичная HTTPS-ссылка на JSON-манифест</label><input id="updateFeedUrl" type="url" placeholder="https://example.com/sloymaster/releases.json" autocomplete="url"></div>
-        <div class="dialog-footnote">Манифест должен содержать версию и HTTPS-ссылку на выпуск: { "version": "1.1.0", "url": "https://…", "notes": "Что нового" }. Хостинг манифеста должен разрешать CORS-запросы из локального приложения. Проверка выполняется при запуске не чаще раза в сутки и вручную по кнопке. Передаётся только запрос манифеста — печати и файлы не загружаются. Загрузка и установка выполняются вами вручную.</div>
+        <div class="dialog-footnote">Манифест должен содержать версию и HTTPS-ссылку на выпуск: { "version": "1.2.0", "url": "https://…", "notes": "Что нового" }. Хостинг манифеста должен разрешать CORS-запросы из локального приложения. Проверка выполняется при запуске не чаще раза в сутки и вручную по кнопке. Передаётся только запрос манифеста — печати и файлы не загружаются. Загрузка и установка выполняются вами вручную.</div>
         <div class="dialog-actions"><button id="saveUpdateFeed" type="button">Сохранить адрес</button><button id="checkUpdates" type="button">Проверить сейчас</button></div>
         <div class="learning-status" id="updateStatus" aria-live="polite">Источник обновлений не настроен.</div>
       </div>
@@ -491,6 +491,7 @@
       $('detectedProfile').replaceChildren(new Option('Профили не переданы',''));
       showDetectedItems('windowsPrinters',[],'Данные не переданы.',()=>({title:'',detail:''}));
       showDetectedItems('serialPorts',[],'Данные не переданы.',()=>({title:'',detail:''}));
+      showDetectedItems('wifiPrinters',[],'Запустите приложение через ярлык Windows.',()=>({title:'',detail:''}));
       showDetectedItems('slicers',[],'Данные не переданы.',()=>({title:'',detail:''}));
       showDetectedItems('profileDetails',[],'Профили не переданы.',()=>({title:'',detail:''}));
       return;
@@ -502,13 +503,17 @@
       if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('metadata must be an object');
       windowsMetadata=data;
       const records=key=>Array.isArray(data[key])?data[key].filter(item=>item&&typeof item==='object'&&!Array.isArray(item)):[];
-      const printers=records('printers'), ports=records('serialPorts'), slicersFound=records('slicers'), profiles=records('profiles');
-      status.textContent='Получены сведения, собранные помощником Windows.';
+      const printers=records('printers'), ports=records('serialPorts'), wifiPrinters=records('wifiPrinters'), slicersFound=records('slicers'), profiles=records('profiles');
+      status.textContent=`Получены сведения от помощника Windows. Обнаружено сетевых принтеров-кандидатов: ${wifiPrinters.length}.`;
       showDetectedItems('windowsPrinters',printers,'Очереди не найдены.',item=>({
         title:item.name||item.driverName||'Принтер без имени',
         detail:[item.driverName,item.portName,item.is3d===true?'отмечен как 3D-принтер':item.is3d===false?'не отмечен как 3D-принтер':'тип не указан'].filter(Boolean).join(' · ')
       }));
       showDetectedItems('serialPorts',ports,'Последовательные порты не найдены.',item=>({title:item.name||item.deviceId||'Устройство без имени',detail:item.deviceId||''}));
+      showDetectedItems('wifiPrinters',wifiPrinters,'Сетевые объявления 3D-принтеров не обнаружены. Проверьте, что компьютер и принтер находятся в одной сети; некоторые модели не поддерживают сетевое обнаружение.',item=>({
+        title:item.name||item.model||`3D-принтер ${item.ipAddress||''}`,
+        detail:[item.vendor,item.model,item.ipAddress,item.method,item.source].filter(Boolean).join(' · ')
+      }));
       showDetectedItems('slicers',slicersFound,'Слайсеры не найдены.',item=>({title:item.name||'Слайсер без имени',detail:[item.version,item.path].filter(Boolean).join(' · ')}));
 
       const slicerTarget=$('slicerTarget');slicerTarget.replaceChildren(new Option('Выберите совместимый слайсер…',''));
@@ -573,7 +578,7 @@
       }
     } catch {
       status.textContent='Не удалось прочитать данные оборудования. Повторно откройте приложение через ярлык Windows.';
-      for(const id of ['windowsPrinters','serialPorts','slicers','profileDetails'])showDetectedItems(id,[],'Данные не прочитаны.',()=>({title:'',detail:''}));updateSlicerActionState();
+      for(const id of ['windowsPrinters','serialPorts','wifiPrinters','slicers','profileDetails'])showDetectedItems(id,[],'Данные не прочитаны.',()=>({title:'',detail:''}));updateSlicerActionState();
     }
   }
   function fmt(n, places=1) { return Number(n).toLocaleString('ru-RU',{maximumFractionDigits:places}); }
